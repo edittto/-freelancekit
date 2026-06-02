@@ -28,19 +28,20 @@ button:disabled{opacity:0.45;cursor:default}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:4px}
 @media(max-width:600px){
-  .hide-mobile{display:none!important}
   .grid-2{grid-template-columns:1fr!important}
   .grid-3{grid-template-columns:1fr 1fr!important}
   .modal-inner{max-width:100%!important;border-radius:16px 16px 0 0!important;position:fixed!important;bottom:0!important;left:0!important;right:0!important;max-height:92vh!important}
   .modal-wrap{align-items:flex-end!important;padding:0!important}
 }
 @media print{.no-print{display:none!important}body{background:#fff}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const{useState,useEffect,useMemo,useRef,useCallback}=React;
+const{useState,useEffect,useMemo,useRef}=React;
 
 // ── SUPABASE ───────────────────────────────────────────────
 const SUPABASE_URL="https://ccdogcakiiflzccmwdbu.supabase.co";
@@ -73,20 +74,18 @@ const EXPENSE_LEVELS=[
 ];
 const PAYMENT_METHODS=["銀行振込","PayPal","PayPay","クレジットカード","現金","その他"];
 const INCOME_WALLS=[
-  {label:"103万円",value:1030000},
-  {label:"130万円",value:1300000},
-  {label:"150万円",value:1500000},
-  {label:"自由設定",value:null},
+  {label:"103万円",value:1030000},{label:"130万円",value:1300000},
+  {label:"150万円",value:1500000},{label:"自由設定",value:null},
 ];
 const CLIENT_PALETTE=["#60A5FA","#34D399","#F87171","#A78BFA","#FB923C","#38BDF8","#4ADE80","#F472B6"];
 const ADDON_REASONS=["時間超過","素材量過多","仕様変更","修正超過","急ぎ対応","その他"];
 const PASTEL_THEMES=[
-  {id:"default",label:"デフォルト",primary:"#6366F1",bg:"#F8F8FF",card:"#FFFFFF",accent:"#818CF8"},
-  {id:"mint",label:"ミント",primary:"#10B981",bg:"#F0FDF9",card:"#FFFFFF",accent:"#34D399"},
-  {id:"peach",label:"ピーチ",primary:"#F97316",bg:"#FFF7F0",card:"#FFFFFF",accent:"#FB923C"},
-  {id:"lavender",label:"ラベンダー",primary:"#8B5CF6",bg:"#F5F3FF",card:"#FFFFFF",accent:"#A78BFA"},
-  {id:"rose",label:"ローズ",primary:"#E11D48",bg:"#FFF1F2",card:"#FFFFFF",accent:"#FB7185"},
-  {id:"sky",label:"スカイ",primary:"#0EA5E9",bg:"#F0F9FF",card:"#FFFFFF",accent:"#38BDF8"},
+  {id:"default",label:"デフォルト",primary:"#6366F1",bg:"#F8F8FF",card:"#FFFFFF"},
+  {id:"mint",label:"ミント",primary:"#10B981",bg:"#F0FDF9",card:"#FFFFFF"},
+  {id:"peach",label:"ピーチ",primary:"#F97316",bg:"#FFF7F0",card:"#FFFFFF"},
+  {id:"lavender",label:"ラベンダー",primary:"#8B5CF6",bg:"#F5F3FF",card:"#FFFFFF"},
+  {id:"rose",label:"ローズ",primary:"#E11D48",bg:"#FFF1F2",card:"#FFFFFF"},
+  {id:"sky",label:"スカイ",primary:"#0EA5E9",bg:"#F0F9FF",card:"#FFFFFF"},
 ];
 const TOOLTIPS={
   workHours:"1日に確保できる作業時間。案件登録時に締切まで間に合うかの計算に使用されます。",
@@ -113,6 +112,21 @@ const INIT_SETTINGS={
   ],
 };
 
+// サンプルデータ（初回ログイン時のみ表示）
+const SAMPLE_CLIENTS=[
+  {id:101,name:"田中商事（例）",paymentMethod:"銀行振込",paymentDelay:false,color:CLIENT_PALETTE[0],note:""},
+  {id:102,name:"山田YouTube（例）",paymentMethod:"PayPay",paymentDelay:true,color:CLIENT_PALETTE[2],note:""},
+];
+const SAMPLE_JOBS=[
+  {id:1001,clientId:101,type:"動画編集",status:"制作中",basePrice:15000,addOns:[],receiveDate:"2026-06-01",deadline:"2026-06-15",startDate:"2026-06-03",targetDate:"2026-06-12",estimatedHours:6,actualHours:3,paymentType:"後払い",notes:"初回依頼。BGM差し替えあり。",checklist:DEFAULT_CHECKLIST.map((t,i)=>({id:i,text:t,done:i<3})),invoiced:false,contracted:true},
+  {id:1002,clientId:102,type:"サムネイル制作",status:"納品済",basePrice:2500,addOns:[{id:1,reason:"修正超過",customReason:"3回追加修正",amount:1500}],receiveDate:"2026-05-20",deadline:"2026-05-25",startDate:"2026-05-21",targetDate:"2026-05-24",estimatedHours:1.5,actualHours:2.5,paymentType:"後払い",notes:"",checklist:DEFAULT_CHECKLIST.map((t,i)=>({id:i,text:t,done:i<9})),invoiced:true,contracted:true},
+];
+const SAMPLE_EXPENSES=[
+  {id:201,name:"Adobe CC（例）",amount:6480,type:"monthly",level:1},
+  {id:202,name:"クラウドストレージ（例）",amount:1500,type:"monthly",level:1},
+  {id:203,name:"外付けHDD（例）",amount:15000,type:"one-time",level:2},
+];
+
 // ── UTILS ──────────────────────────────────────────────────
 const yen=n=>"¥"+Math.round(n||0).toLocaleString("ja-JP");
 const toDay=()=>new Date().toISOString().slice(0,10);
@@ -121,31 +135,24 @@ const totalPrice=j=>(j.basePrice||0)+(j.addOns||[]).reduce((s,a)=>s+(Number(a.am
 const hrRate=(price,hours)=>hours>0?Math.round(price/hours):0;
 const thisMonth=()=>{const n=new Date();return`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`;};
 const thisYear=()=>String(new Date().getFullYear());
-const uid=()=>localStorage.getItem("fk_uid")||(()=>{const id="user_"+Math.random().toString(36).slice(2);localStorage.setItem("fk_uid",id);return id;})();
 
-// ── SUPABASE SYNC ──────────────────────────────────────────
+// ── DB ─────────────────────────────────────────────────────
 async function dbLoad(table,userId){
   const{data,error}=await sb.from(table).select("data").eq("user_id",userId).single();
   if(error||!data)return null;
   return data.data;
 }
 async function dbSave(table,userId,payload){
-  const{data:existing}=await sb.from(table).select("id").eq("user_id",userId).single();
-  if(existing){
-    await sb.from(table).update({data:payload,updated_at:new Date().toISOString()}).eq("user_id",userId);
-  }else{
-    await sb.from(table).insert({user_id:userId,data:payload});
-  }
+  const{data:ex}=await sb.from(table).select("id").eq("user_id",userId).single();
+  if(ex){await sb.from(table).update({data:payload,updated_at:new Date().toISOString()}).eq("user_id",userId);}
+  else{await sb.from(table).insert({user_id:userId,data:payload});}
 }
 
 // ── UI PRIMITIVES ──────────────────────────────────────────
 function Tooltip({text,children}){
   const[show,setShow]=useState(false);
   const ref=useRef();
-  useEffect(()=>{
-    function h(e){if(ref.current&&!ref.current.contains(e.target))setShow(false);}
-    document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);
-  },[]);
+  useEffect(()=>{function h(e){if(ref.current&&!ref.current.contains(e.target))setShow(false);}document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
   return(
     <span ref={ref} style={{position:"relative",display:"inline-flex",alignItems:"center"}}>
       {children}
@@ -164,10 +171,10 @@ function Badge({status}){
 function Card({children,style,accent}){
   return<div style={{background:"var(--clr-card)",border:`1.5px solid ${accent||"#E2E8F0"}`,borderRadius:12,padding:"1rem 1.125rem",...style}}>{children}</div>;
 }
-function MetricCard({label,value,sub,warn,tip}){
+function MetricCard({label,value,sub,warn}){
   return(
     <div style={{background:warn?"#FFF1F2":"var(--clr-bg)",border:`1.5px solid ${warn?"#FECDD3":"#E2E8F0"}`,borderRadius:10,padding:"0.875rem 1rem"}}>
-      <div style={{fontSize:11,color:"#64748B",marginBottom:4,display:"flex",alignItems:"center",gap:2}}>{tip?<Tooltip text={tip}>{label}</Tooltip>:label}</div>
+      <div style={{fontSize:11,color:"#64748B",marginBottom:4}}>{label}</div>
       <div style={{fontSize:20,fontWeight:700,color:warn?"#BE123C":"#1E293B",lineHeight:1.2}}>{value}</div>
       {sub&&<div style={{fontSize:11,color:warn?"#FB7185":"#64748B",marginTop:2}}>{sub}</div>}
     </div>
@@ -223,16 +230,113 @@ function Lbl({children,tip,required}){
     </div>
   );
 }
-function SyncBadge({syncing,lastSync}){
-  return(
-    <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#94A3B8"}}>
-      {syncing
-        ?<><i className="ti ti-refresh" style={{fontSize:13,animation:"spin 1s linear infinite"}}/> 同期中...</>
-        :lastSync
-          ?<><i className="ti ti-cloud-check" style={{fontSize:13,color:"#34D399"}}/> {lastSync}</>
-          :<><i className="ti ti-cloud-off" style={{fontSize:13}}/> 未同期</>
+
+// ── LOGIN SCREEN ───────────────────────────────────────────
+function LoginScreen({onLogin}){
+  const[mode,setMode]=useState("login"); // login | signup | reset
+  const[email,setEmail]=useState("");
+  const[pass,setPass]=useState("");
+  const[loading,setLoading]=useState(false);
+  const[msg,setMsg]=useState(null);
+  const[err,setErr]=useState(null);
+
+  async function handleSubmit(){
+    setLoading(true);setErr(null);setMsg(null);
+    try{
+      if(mode==="login"){
+        const{data,error}=await sb.auth.signInWithPassword({email,password:pass});
+        if(error)throw error;
+        onLogin(data.user);
+      }else if(mode==="signup"){
+        const{data,error}=await sb.auth.signUp({email,password:pass});
+        if(error)throw error;
+        setMsg("登録が完了しました。ログインしてください。");
+        setMode("login");
+      }else if(mode==="reset"){
+        const{error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.href});
+        if(error)throw error;
+        setMsg("パスワードリセットのメールを送りました。");
       }
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+    }catch(e){setErr(e.message||"エラーが発生しました");}
+    setLoading(false);
+  }
+
+  const titles={login:"ログイン",signup:"新規登録",reset:"パスワードリセット"};
+  const btnLabels={login:"ログイン",signup:"登録する",reset:"メールを送る"};
+
+  return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F8F8FF",padding:16}}>
+      <div style={{width:"100%",maxWidth:400,animation:"fadeIn 0.3s ease"}}>
+        {/* logo */}
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <div style={{width:56,height:56,borderRadius:16,background:"#6366F1",display:"inline-flex",alignItems:"center",justifyContent:"center",marginBottom:12}}>
+            <i className="ti ti-briefcase" style={{color:"#fff",fontSize:28}}/>
+          </div>
+          <div style={{fontSize:24,fontWeight:900,color:"#6366F1",letterSpacing:-0.5}}>FreelanceKit</div>
+          <div style={{fontSize:13,color:"#94A3B8",marginTop:4}}>フリーランサー管理ツール</div>
+        </div>
+
+        <div style={{background:"#fff",borderRadius:16,border:"1.5px solid #E2E8F0",padding:"1.75rem",boxShadow:"0 4px 24px rgba(0,0,0,0.08)"}}>
+          <h2 style={{fontSize:16,fontWeight:700,color:"#1E293B",marginBottom:20,textAlign:"center"}}>{titles[mode]}</h2>
+
+          {err&&<div style={{background:"#FFF1F2",border:"1.5px solid #FECDD3",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#BE123C",marginBottom:14}}>{err}</div>}
+          {msg&&<div style={{background:"#F0FDF4",border:"1.5px solid #BBF7D0",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#15803D",marginBottom:14}}>{msg}</div>}
+
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <div>
+              <Lbl>メールアドレス</Lbl>
+              <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&handleSubmit()}
+                placeholder="your@email.com" style={{width:"100%",boxSizing:"border-box"}}/>
+            </div>
+            {mode!=="reset"&&<div>
+              <Lbl>パスワード</Lbl>
+              <input type="password" value={pass} onChange={e=>setPass(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&handleSubmit()}
+                placeholder={mode==="signup"?"8文字以上":"パスワード"} style={{width:"100%",boxSizing:"border-box"}}/>
+            </div>}
+            <button onClick={handleSubmit} disabled={loading||!email||(mode!=="reset"&&!pass)}
+              style={{background:"#6366F1",color:"#fff",border:"none",borderRadius:10,padding:"11px",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:4,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              {loading?<i className="ti ti-refresh" style={{animation:"spin 1s linear infinite"}}/>:null}
+              {loading?"処理中...":btnLabels[mode]}
+            </button>
+          </div>
+
+          <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}>
+            {mode==="login"&&<>
+              <button onClick={()=>{setMode("signup");setErr(null);setMsg(null);}} style={{border:"none",background:"none",color:"#6366F1",fontSize:13,cursor:"pointer",fontWeight:600}}>
+                アカウントをお持ちでない方は新規登録
+              </button>
+              <button onClick={()=>{setMode("reset");setErr(null);setMsg(null);}} style={{border:"none",background:"none",color:"#94A3B8",fontSize:12,cursor:"pointer"}}>
+                パスワードを忘れた方
+              </button>
+            </>}
+            {mode!=="login"&&<button onClick={()=>{setMode("login");setErr(null);setMsg(null);}} style={{border:"none",background:"none",color:"#6366F1",fontSize:13,cursor:"pointer",fontWeight:600}}>
+              ← ログインに戻る
+            </button>}
+          </div>
+        </div>
+
+        <div style={{textAlign:"center",marginTop:16,fontSize:11,color:"#CBD5E1"}}>
+          データはSupabaseに安全に保存されます
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── SAMPLE BANNER ──────────────────────────────────────────
+function SampleBanner({onDismiss}){
+  return(
+    <div style={{background:"linear-gradient(135deg,#6366F1,#8B5CF6)",borderRadius:12,padding:"14px 16px",marginBottom:"1rem",color:"#fff",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+      <i className="ti ti-sparkles" style={{fontSize:20,flexShrink:0}}/>
+      <div style={{flex:1}}>
+        <div style={{fontWeight:700,fontSize:14}}>サンプルデータが表示されています</div>
+        <div style={{fontSize:12,opacity:0.85,marginTop:2}}>「（例）」と書かれたデータはサンプルです。実際のデータを追加したら削除してください。</div>
+      </div>
+      <button onClick={onDismiss} style={{background:"rgba(255,255,255,0.2)",border:"1px solid rgba(255,255,255,0.4)",color:"#fff",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,flexShrink:0}}>
+        わかった
+      </button>
     </div>
   );
 }
@@ -320,7 +424,7 @@ function JobModal({job,clients,settings,onSave,onAddClient,onClose}){
   const hw=daysAvail!==null&&daysAvail<Number(form.estimatedHours);
   function hType(name){const t=settings.jobTypes.find(x=>x.name===name);setForm(f=>({...f,type:name,estimatedHours:t?.hours||f.estimatedHours,basePrice:t?.defaultPrice||f.basePrice}));}
   function addAddon(){setForm(f=>({...f,addOns:[...f.addOns,{id:Date.now(),reason:"その他",customReason:"",amount:0}]}));}
-  function upAddon(id,field,val){setForm(f=>({...f,addOns:f.addOns.map(a=>a.id===id?{...a,[field]:val}:a)}));}
+  function upAddon(id,k,v){setForm(f=>({...f,addOns:f.addOns.map(a=>a.id===id?{...a,[k]:v}:a)}));}
   function rmAddon(id){setForm(f=>({...f,addOns:f.addOns.filter(a=>a.id!==id)}));}
   function togCk(id){setForm(f=>({...f,checklist:f.checklist.map(c=>c.id===id?{...c,done:!c.done}:c)}));}
   function addCk(){if(!newCk.trim())return;setForm(f=>({...f,checklist:[...f.checklist,{id:Date.now(),text:newCk.trim(),done:false}]}));setNewCk("");}
@@ -331,22 +435,17 @@ function JobModal({job,clients,settings,onSave,onAddClient,onClose}){
   const sect={background:"#F8FAFC",borderRadius:10,border:"1.5px solid #E2E8F0",padding:"12px 14px"};
   return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      {hw&&<div style={{background:"#FFF1F2",border:"1.5px solid #FECDD3",borderRadius:8,padding:"8px 12px",fontSize:13,color:"#BE123C"}}>
-        <i className="ti ti-alert-triangle" style={{marginRight:6}}/>作業可能時間が不足しています（必要:{form.estimatedHours}h / 確保可能:{daysAvail?.toFixed(1)}h）
-      </div>}
-      {selCl?.paymentDelay&&<div style={{background:"#FFF7ED",border:"1.5px solid #FED7AA",borderRadius:8,padding:"8px 12px",fontSize:13,color:"#C2410C"}}>
-        <i className="ti ti-shield-exclamation" style={{marginRight:6}}/>このクライアントは過去に入金遅延があります。前払いを推奨します。
-      </div>}
+      {hw&&<div style={{background:"#FFF1F2",border:"1.5px solid #FECDD3",borderRadius:8,padding:"8px 12px",fontSize:13,color:"#BE123C"}}><i className="ti ti-alert-triangle" style={{marginRight:6}}/>作業可能時間が不足しています（必要:{form.estimatedHours}h / 確保可能:{daysAvail?.toFixed(1)}h）</div>}
+      {selCl?.paymentDelay&&<div style={{background:"#FFF7ED",border:"1.5px solid #FED7AA",borderRadius:8,padding:"8px 12px",fontSize:13,color:"#C2410C"}}><i className="ti ti-shield-exclamation" style={{marginRight:6}}/>このクライアントは過去に入金遅延があります。前払いを推奨します。</div>}
       <div className="grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
         <div>
           <Lbl required>クライアント</Lbl>
           <select value={form.clientId||""} onChange={e=>setForm(f=>({...f,clientId:Number(e.target.value)}))} style={inp}>
-            <option value="">選択</option>
-            {clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.paymentDelay?" ⚠":""}</option>)}
+            <option value="">選択</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.paymentDelay?" ⚠":""}</option>)}
           </select>
           <button onClick={()=>setAddingCl(true)} style={{fontSize:11,marginTop:4,padding:"2px 8px",color:"var(--clr-primary)",borderColor:"var(--clr-primary)",background:"transparent"}}>+ 新規クライアント</button>
         </div>
-        <div><Lbl tip={TOOLTIPS.jobType}>作業種別</Lbl><select value={form.type} onChange={e=>hType(e.target.value)} style={inp}>{settings.jobTypes.map(t=><option key={t.id}>{t.name}</option>)}</select></div>
+        <div><Lbl>作業種別</Lbl><select value={form.type} onChange={e=>hType(e.target.value)} style={inp}>{settings.jobTypes.map(t=><option key={t.id}>{t.name}</option>)}</select></div>
       </div>
       <div className="grid-3" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
         <div><Lbl>ステータス</Lbl><select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))} style={inp}>{STATUS_LIST.map(s=><option key={s}>{s}</option>)}</select></div>
@@ -362,11 +461,7 @@ function JobModal({job,clients,settings,onSave,onAddClient,onClose}){
       <div style={sect}>
         <div style={{fontSize:13,fontWeight:700,color:"#334155",marginBottom:8}}>料金設定</div>
         <div className="grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
-          <div>
-            <Lbl>基本料金</Lbl>
-            <input type="number" value={form.basePrice} onChange={e=>setForm(f=>({...f,basePrice:e.target.value}))} style={inp}/>
-            {selType&&form.basePrice!=selType.defaultPrice&&<div style={{fontSize:11,color:form.basePrice>selType.defaultPrice?"#15803D":"#BE123C",marginTop:3}}>標準{yen(selType.defaultPrice)}から{form.basePrice>selType.defaultPrice?"+":""}{yen(form.basePrice-selType.defaultPrice)}</div>}
-          </div>
+          <div><Lbl>基本料金</Lbl><input type="number" value={form.basePrice} onChange={e=>setForm(f=>({...f,basePrice:e.target.value}))} style={inp}/>{selType&&form.basePrice!=selType.defaultPrice&&<div style={{fontSize:11,color:form.basePrice>selType.defaultPrice?"#15803D":"#BE123C",marginTop:3}}>標準{yen(selType.defaultPrice)}から{form.basePrice>selType.defaultPrice?"+":""}{yen(form.basePrice-selType.defaultPrice)}</div>}</div>
           <div><Lbl>実績工数(h)</Lbl><input type="number" value={form.actualHours} onChange={e=>setForm(f=>({...f,actualHours:e.target.value}))} style={inp} step="0.5"/></div>
         </div>
         <Lbl tip={TOOLTIPS.addOnPrice}>追加料金</Lbl>
@@ -385,14 +480,10 @@ function JobModal({job,clients,settings,onSave,onAddClient,onClose}){
         </div>
         {rate>0&&<div style={{fontSize:12,color:rw?"#C2410C":"#64748B",marginTop:3}}>推定時給: {yen(rate)}/h{rw?` ⚠ 目標${yen(settings.alertHourlyRate)}/h未満`:""}</div>}
         {actRate>0&&<div style={{fontSize:12,color:arw?"#C2410C":"#15803D",marginTop:2}}>実績時給: {yen(actRate)}/h</div>}
-        {(rw||arw)&&<div style={{fontSize:12,color:"#92400E",background:"#FFFBEB",borderRadius:6,padding:"6px 10px",marginTop:6,lineHeight:1.7}}>
-          💡 目標時給{yen(settings.alertHourlyRate)}/hにするには請求を<strong>{yen(settings.alertHourlyRate*Number(form.actualHours||form.estimatedHours))}</strong>以上にするか、追加料金で調整してください。
-        </div>}
+        {(rw||arw)&&<div style={{fontSize:12,color:"#92400E",background:"#FFFBEB",borderRadius:6,padding:"6px 10px",marginTop:6,lineHeight:1.7}}>💡 目標時給{yen(settings.alertHourlyRate)}/hにするには請求を<strong>{yen(settings.alertHourlyRate*Number(form.actualHours||form.estimatedHours))}</strong>以上にするか、追加料金で調整してください。</div>}
       </div>
       <div style={sect}>
-        <div style={{fontSize:13,fontWeight:700,color:"#334155",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
-          チェックリスト <span style={{fontSize:12,color:"#64748B",fontWeight:400}}>{form.checklist.filter(c=>c.done).length}/{form.checklist.length}</span>
-        </div>
+        <div style={{fontSize:13,fontWeight:700,color:"#334155",marginBottom:8}}>チェックリスト <span style={{fontSize:12,color:"#64748B",fontWeight:400}}>{form.checklist.filter(c=>c.done).length}/{form.checklist.length}</span></div>
         {form.checklist.map(c=>(
           <div key={c.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
             <input type="checkbox" checked={c.done} onChange={()=>togCk(c.id)} style={{width:15,height:15,accentColor:"var(--clr-primary)",flexShrink:0}}/>
@@ -425,11 +516,8 @@ function JobModal({job,clients,settings,onSave,onAddClient,onClose}){
 
 // ── JOBS TAB ───────────────────────────────────────────────
 function JobsTab({jobs,setJobs,clients,setClients,settings}){
-  const[modal,setModal]=useState(false);
-  const[editJob,setEditJob]=useState(null);
-  const[filterS,setFilterS]=useState("すべて");
-  const[compact,setCompact]=useState(false);
-  const[confirmDel,setConfirmDel]=useState(null);
+  const[modal,setModal]=useState(false);const[editJob,setEditJob]=useState(null);
+  const[filterS,setFilterS]=useState("すべて");const[compact,setCompact]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
   const gc=id=>clients.find(c=>c.id===id);
   function saveJob(job){setJobs(prev=>{const i=prev.findIndex(j=>j.id===job.id);if(i>=0){const n=[...prev];n[i]=job;return n;}return[...prev,{...job,id:Date.now()}];});}
   const filtered=filterS==="すべて"?jobs:jobs.filter(j=>j.status===filterS);
@@ -443,9 +531,7 @@ function JobsTab({jobs,setJobs,clients,setClients,settings}){
         </div>
       </div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:"1rem"}}>
-        {["すべて",...STATUS_LIST].map(s=>(
-          <button key={s} onClick={()=>setFilterS(s)} style={{fontSize:12,padding:"4px 12px",fontWeight:filterS===s?700:400,background:filterS===s?"var(--clr-primary)":"transparent",color:filterS===s?"#fff":"#64748B",border:`1.5px solid ${filterS===s?"var(--clr-primary)":"#E2E8F0"}`,borderRadius:20}}>{s}</button>
-        ))}
+        {["すべて",...STATUS_LIST].map(s=><button key={s} onClick={()=>setFilterS(s)} style={{fontSize:12,padding:"4px 12px",fontWeight:filterS===s?700:400,background:filterS===s?"var(--clr-primary)":"transparent",color:filterS===s?"#fff":"#64748B",border:`1.5px solid ${filterS===s?"var(--clr-primary)":"#E2E8F0"}`,borderRadius:20}}>{s}</button>)}
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         {filtered.length===0&&<div style={{color:"#64748B",fontSize:13,padding:"1rem"}}>案件がありません</div>}
@@ -463,14 +549,8 @@ function JobsTab({jobs,setJobs,clients,setClients,settings}){
                   <div style={{fontWeight:700,fontSize:14,color:"#1E293B"}}>{cl?.name}</div>
                   {!compact&&<div style={{fontSize:12,color:"#64748B",marginTop:2}}>{j.type} · 推定{j.estimatedHours}h{j.actualHours>0?` / 実績${j.actualHours}h`:""}</div>}
                 </div>
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontWeight:700,fontSize:14}}>{yen(tp)}</div>
-                  {rate!==null&&<div style={{fontSize:11,color:rw?"#C2410C":"#64748B"}}>{yen(rate)}/h{rw?" ⚠":""}</div>}
-                </div>
-                {!compact&&<div style={{fontSize:12,color:"#64748B",textAlign:"right"}}>
-                  <div>締切:{j.deadline}</div>
-                  <div style={{marginTop:2}}>✓ {ck}/{j.checklist.length}</div>
-                </div>}
+                <div style={{textAlign:"right"}}><div style={{fontWeight:700,fontSize:14}}>{yen(tp)}</div>{rate!==null&&<div style={{fontSize:11,color:rw?"#C2410C":"#64748B"}}>{yen(rate)}/h{rw?" ⚠":""}</div>}</div>
+                {!compact&&<div style={{fontSize:12,color:"#64748B",textAlign:"right"}}><div>締切:{j.deadline}</div><div style={{marginTop:2}}>✓ {ck}/{j.checklist.length}</div></div>}
                 <div style={{display:"flex",gap:4}}>
                   <button onClick={()=>{setEditJob(j);setModal(true);}} style={{padding:"3px 8px",fontSize:13,borderRadius:6}}><i className="ti ti-edit"/></button>
                   <button onClick={()=>setConfirmDel(j.id)} style={{padding:"3px 8px",fontSize:13,borderRadius:6,color:"#fff",background:"#EF4444",border:"1px solid #EF4444"}}><i className="ti ti-trash"/></button>
@@ -481,9 +561,7 @@ function JobsTab({jobs,setJobs,clients,setClients,settings}){
           );
         })}
       </div>
-      {modal&&<Modal title={editJob?"案件を編集":"新規案件登録"} onClose={()=>setModal(false)} wide>
-        <JobModal job={editJob} clients={clients} settings={settings} onSave={saveJob} onAddClient={nc=>setClients(p=>[...p,nc])} onClose={()=>setModal(false)}/>
-      </Modal>}
+      {modal&&<Modal title={editJob?"案件を編集":"新規案件登録"} onClose={()=>setModal(false)} wide><JobModal job={editJob} clients={clients} settings={settings} onSave={saveJob} onAddClient={nc=>setClients(p=>[...p,nc])} onClose={()=>setModal(false)}/></Modal>}
       {confirmDel&&<Confirm message="この案件を削除しますか？この操作は元に戻せません。" onConfirm={()=>{setJobs(p=>p.filter(j=>j.id!==confirmDel));setConfirmDel(null);}} onCancel={()=>setConfirmDel(null)}/>}
     </div>
   );
@@ -491,10 +569,8 @@ function JobsTab({jobs,setJobs,clients,setClients,settings}){
 
 // ── CALENDAR ───────────────────────────────────────────────
 function CalendarTab({jobs,clients,settings}){
-  const[yr,setYr]=useState(new Date().getFullYear());
-  const[mo,setMo]=useState(new Date().getMonth());
-  const[vt,setVt]=useState(settings.calendarView);
-  const[dt,setDt]=useState(settings.calendarDateType);
+  const[yr,setYr]=useState(new Date().getFullYear());const[mo,setMo]=useState(new Date().getMonth());
+  const[vt,setVt]=useState(settings.calendarView);const[dt,setDt]=useState(settings.calendarDateType);
   const gc=id=>clients.find(c=>c.id===id);
   const first=new Date(yr,mo,1).getDay(),dim=new Date(yr,mo+1,0).getDate();
   const cells=[...Array(first).fill(null),...Array.from({length:dim},(_,i)=>i+1)];
@@ -517,9 +593,7 @@ function CalendarTab({jobs,clients,settings}){
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>{clients.map(c=><div key={c.id} style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"#64748B"}}><div style={{width:9,height:9,borderRadius:"50%",background:c.color}}/>{c.name}</div>)}</div>
       <Card style={{padding:"0.75rem"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,marginBottom:4}}>
-          {["日","月","火","水","木","金","土"].map((d,i)=><div key={d} style={{textAlign:"center",fontSize:11,fontWeight:700,color:i===0?"#EF4444":i===6?"#60A5FA":"#64748B",padding:"4px 0"}}>{d}</div>)}
-        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,marginBottom:4}}>{["日","月","火","水","木","金","土"].map((d,i)=><div key={d} style={{textAlign:"center",fontSize:11,fontWeight:700,color:i===0?"#EF4444":i===6?"#60A5FA":"#64748B",padding:"4px 0"}}>{d}</div>)}</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
           {cells.map((d,i)=>{
             if(!d)return<div key={i}/>;
@@ -527,13 +601,11 @@ function CalendarTab({jobs,clients,settings}){
             const rj=vt==="bar"?jobs.filter(j=>inRange(j,d)):[];
             const dj=vt==="dot"?jobs.filter(j=>{if(dt==="deadline")return j.deadline===dateStr;if(dt==="targetDate")return j.targetDate===dateStr;return j.startDate===dateStr;}):[];
             const isSun=(first+d-1)%7===0,isSat=(first+d-1)%7===6;
-            return(
-              <div key={i} style={{minHeight:52,padding:"3px 4px",borderRadius:6,background:isToday?"var(--clr-primary-soft,#EEF2FF)":"transparent",border:`1px solid ${isToday?"var(--clr-primary)":"#E2E8F0"}`}}>
-                <div style={{fontSize:12,fontWeight:isToday?700:400,color:isToday?"var(--clr-primary)":isSun?"#EF4444":isSat?"#60A5FA":"#1E293B",marginBottom:2}}>{d}</div>
-                {vt==="dot"?<div style={{display:"flex",flexWrap:"wrap",gap:2}}>{dj.map(j=><div key={j.id} title={gc(j.clientId)?.name} style={{width:7,height:7,borderRadius:"50%",background:gc(j.clientId)?.color||"#888"}}/>)}</div>
-                :rj.map(j=><div key={j.id} title={`${gc(j.clientId)?.name} ${j.type}`} style={{fontSize:10,background:gc(j.clientId)?.color||"#888",color:"#fff",borderRadius:3,padding:"1px 3px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{gc(j.clientId)?.name?.slice(0,4)}</div>)}
-              </div>
-            );
+            return(<div key={i} style={{minHeight:52,padding:"3px 4px",borderRadius:6,background:isToday?"rgba(99,102,241,0.1)":"transparent",border:`1px solid ${isToday?"var(--clr-primary)":"#E2E8F0"}`}}>
+              <div style={{fontSize:12,fontWeight:isToday?700:400,color:isToday?"var(--clr-primary)":isSun?"#EF4444":isSat?"#60A5FA":"#1E293B",marginBottom:2}}>{d}</div>
+              {vt==="dot"?<div style={{display:"flex",flexWrap:"wrap",gap:2}}>{dj.map(j=><div key={j.id} title={gc(j.clientId)?.name} style={{width:7,height:7,borderRadius:"50%",background:gc(j.clientId)?.color||"#888"}}/>)}</div>
+              :rj.map(j=><div key={j.id} title={`${gc(j.clientId)?.name} ${j.type}`} style={{fontSize:10,background:gc(j.clientId)?.color||"#888",color:"#fff",borderRadius:3,padding:"1px 3px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{gc(j.clientId)?.name?.slice(0,4)}</div>)}
+            </div>);
           })}
         </div>
       </Card>
@@ -543,11 +615,9 @@ function CalendarTab({jobs,clients,settings}){
 
 // ── FINANCE ────────────────────────────────────────────────
 function FinanceTab({jobs,expenses,setExpenses,settings,setSettings}){
-  const[expLv,setExpLv]=useState([1,2,3]);
-  const[showAdd,setShowAdd]=useState(false);
+  const[expLv,setExpLv]=useState([1,2,3]);const[showAdd,setShowAdd]=useState(false);
   const[newExp,setNewExp]=useState({name:"",amount:0,type:"monthly",level:1});
-  const[custom,setCustom]=useState(settings.incomeLimit);
-  const[confirmDel,setConfirmDel]=useState(null);
+  const[custom,setCustom]=useState(settings.incomeLimit);const[confirmDel,setConfirmDel]=useState(null);
   const tm=thisMonth(),ty=thisYear();
   const paid=jobs.filter(j=>["納品済","入金済"].includes(j.status));
   const incM=paid.filter(j=>j.receiveDate?.startsWith(tm)).reduce((s,j)=>s+totalPrice(j),0);
@@ -565,9 +635,7 @@ function FinanceTab({jobs,expenses,setExpenses,settings,setSettings}){
       </div>
       <Card style={{marginBottom:"1rem"}}>
         <div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:10,display:"flex",alignItems:"center",gap:4}}><Tooltip text={TOOLTIPS.incomeLimit}>収益上限設定</Tooltip></div>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
-          {INCOME_WALLS.map(w=><button key={w.label} onClick={()=>setWall(w.label)} style={{fontSize:12,padding:"4px 12px",background:settings.incomeLimitType===w.label?"var(--clr-primary)":"transparent",color:settings.incomeLimitType===w.label?"#fff":"#64748B",border:`1.5px solid ${settings.incomeLimitType===w.label?"var(--clr-primary)":"#E2E8F0"}`,borderRadius:20}}>{w.label}{w.value?` (${yen(w.value)})`:""}</button>)}
-        </div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>{INCOME_WALLS.map(w=><button key={w.label} onClick={()=>setWall(w.label)} style={{fontSize:12,padding:"4px 12px",background:settings.incomeLimitType===w.label?"var(--clr-primary)":"transparent",color:settings.incomeLimitType===w.label?"#fff":"#64748B",border:`1.5px solid ${settings.incomeLimitType===w.label?"var(--clr-primary)":"#E2E8F0"}`,borderRadius:20}}>{w.label}{w.value?` (${yen(w.value)})`:""}</button>)}</div>
         {settings.incomeLimitType==="自由設定"&&<div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center"}}><input type="number" value={custom} onChange={e=>setCustom(Number(e.target.value))} style={{width:150}}/><button onClick={()=>setSettings(s=>({...s,incomeLimit:custom}))} style={{padding:"5px 14px"}}>適用</button></div>}
         <ProgressBar value={incY} max={settings.incomeLimit} label={`年収益 ${yen(incY)} / 上限 ${yen(settings.incomeLimit)}`}/>
       </Card>
@@ -575,7 +643,6 @@ function FinanceTab({jobs,expenses,setExpenses,settings,setSettings}){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
           <div style={{fontSize:14,fontWeight:700,color:"#1E293B"}}>経費管理</div>
           <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-            <span style={{fontSize:11,color:"#64748B"}}>表示:</span>
             {EXPENSE_LEVELS.map(l=><button key={l.id} onClick={()=>setExpLv(p=>p.includes(l.id)?p.filter(x=>x!==l.id):[...p,l.id])} style={{fontSize:11,padding:"2px 8px",background:expLv.includes(l.id)?l.color:"transparent",color:expLv.includes(l.id)?"#fff":"#64748B",border:`1.5px solid ${l.color}`,borderRadius:20}}>Lv{l.id}</button>)}
             <button onClick={()=>setShowAdd(true)} style={{fontSize:12,padding:"3px 10px"}}>+ 追加</button>
           </div>
@@ -616,16 +683,8 @@ function FinanceTab({jobs,expenses,setExpenses,settings,setSettings}){
 function AnalysisTab({jobs,clients,settings}){
   const gc=id=>clients.find(c=>c.id===id);
   const paid=jobs.filter(j=>["納品済","入金済"].includes(j.status));
-  const cStats=useMemo(()=>{
-    const m={};
-    jobs.forEach(j=>{const cl=gc(j.clientId),k=j.clientId;if(!m[k])m[k]={name:cl?.name||"不明",color:cl?.color,count:0,total:0,disc:0};
-      m[k].count++;m[k].total+=totalPrice(j);const t=settings.jobTypes.find(x=>x.name===j.type);if(t&&totalPrice(j)<t.defaultPrice)m[k].disc+=(t.defaultPrice-totalPrice(j));});
-    return Object.values(m).sort((a,b)=>b.total-a.total);
-  },[jobs,clients]);
-  const mData=useMemo(()=>{
-    const m={};paid.forEach(j=>{const mo=j.receiveDate?.slice(0,7);if(!mo)return;if(!m[mo])m[mo]={month:mo,income:0,count:0};m[mo].income+=totalPrice(j);m[mo].count++;});
-    return Object.values(m).sort((a,b)=>a.month.localeCompare(b.month)).slice(-6);
-  },[jobs]);
+  const cStats=useMemo(()=>{const m={};jobs.forEach(j=>{const cl=gc(j.clientId),k=j.clientId;if(!m[k])m[k]={name:cl?.name||"不明",color:cl?.color,count:0,total:0,disc:0};m[k].count++;m[k].total+=totalPrice(j);const t=settings.jobTypes.find(x=>x.name===j.type);if(t&&totalPrice(j)<t.defaultPrice)m[k].disc+=(t.defaultPrice-totalPrice(j));});return Object.values(m).sort((a,b)=>b.total-a.total);},[jobs,clients]);
+  const mData=useMemo(()=>{const m={};paid.forEach(j=>{const mo=j.receiveDate?.slice(0,7);if(!mo)return;if(!m[mo])m[mo]={month:mo,income:0};m[mo].income+=totalPrice(j);});return Object.values(m).sort((a,b)=>a.month.localeCompare(b.month)).slice(-6);},[jobs]);
   const maxInc=Math.max(...mData.map(m=>m.income),1);
   const hrRates=settings.jobTypes.map(t=>({...t,rate:t.hours>0?Math.round(t.defaultPrice/t.hours):0}));
   return(
@@ -634,13 +693,7 @@ function AnalysisTab({jobs,clients,settings}){
       <Card style={{marginBottom:"1rem"}}>
         <div style={{fontSize:14,fontWeight:700,marginBottom:12,color:"#1E293B"}}>月別収益推移</div>
         <div style={{display:"flex",alignItems:"flex-end",gap:8,height:110}}>
-          {mData.map(m=>(
-            <div key={m.month} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-              <div style={{fontSize:10,color:"#64748B"}}>{yen(m.income)}</div>
-              <div style={{width:"100%",background:"var(--clr-primary)",borderRadius:"4px 4px 0 0",height:`${Math.max(4,Math.round((m.income/maxInc)*72))}px`}}/>
-              <div style={{fontSize:11,color:"#64748B"}}>{m.month.slice(5)}月</div>
-            </div>
-          ))}
+          {mData.map(m=><div key={m.month} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><div style={{fontSize:10,color:"#64748B"}}>{yen(m.income)}</div><div style={{width:"100%",background:"var(--clr-primary)",borderRadius:"4px 4px 0 0",height:`${Math.max(4,Math.round((m.income/maxInc)*72))}px`}}/><div style={{fontSize:11,color:"#64748B"}}>{m.month.slice(5)}月</div></div>)}
           {mData.length===0&&<div style={{color:"#64748B",fontSize:13}}>データがありません</div>}
         </div>
       </Card>
@@ -649,33 +702,24 @@ function AnalysisTab({jobs,clients,settings}){
         {cStats.map((c,i)=>(
           <div key={c.name} style={{marginBottom:10}}>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}>
-              <span style={{fontWeight:i===0?700:400,color:"#1E293B",display:"flex",alignItems:"center",gap:6}}>
-                <span style={{width:8,height:8,borderRadius:"50%",background:c.color,display:"inline-block"}}/>{c.name}<span style={{color:"#64748B",fontWeight:400,fontSize:12}}>({c.count}件)</span>
-              </span>
+              <span style={{fontWeight:i===0?700:400,color:"#1E293B",display:"flex",alignItems:"center",gap:6}}><span style={{width:8,height:8,borderRadius:"50%",background:c.color,display:"inline-block"}}/>{c.name}<span style={{color:"#64748B",fontWeight:400,fontSize:12}}>({c.count}件)</span></span>
               <span style={{fontWeight:600}}>{yen(c.total)}{c.disc>0&&<span style={{color:"#BE123C",fontSize:11,marginLeft:8}}>値引き{yen(c.disc)}</span>}</span>
             </div>
-            <div style={{height:6,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}}>
-              <div style={{height:"100%",width:`${Math.round((c.total/(cStats[0]?.total||1))*100)}%`,background:c.color,borderRadius:3}}/>
-            </div>
+            <div style={{height:6,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.round((c.total/(cStats[0]?.total||1))*100)}%`,background:c.color,borderRadius:3}}/></div>
           </div>
         ))}
       </Card>
       <Card>
         <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:"#1E293B",display:"flex",alignItems:"center",gap:4}}><Tooltip text={TOOLTIPS.jobType}>時間単価分析</Tooltip></div>
-        {hrRates.map(t=>{
-          const isLow=t.rate<settings.alertHourlyRate;
-          return(
-            <div key={t.id} style={{marginBottom:10,padding:"10px 12px",background:isLow?"#FFF7ED":"var(--clr-bg)",borderRadius:10,border:`1.5px solid ${isLow?"#FED7AA":"#E2E8F0"}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div><div style={{fontWeight:700,fontSize:13,color:"#1E293B"}}>{t.name}</div><div style={{fontSize:12,color:"#64748B",marginTop:2}}>{yen(t.defaultPrice)} ÷ {t.hours}h</div></div>
-                <div style={{textAlign:"right"}}><div style={{fontSize:18,fontWeight:700,color:isLow?"#C2410C":"#15803D"}}>{yen(t.rate)}/h</div>{isLow&&<div style={{fontSize:11,color:"#C2410C"}}>⚠ 目標{yen(settings.alertHourlyRate)}/h未満</div>}</div>
-              </div>
-              {isLow&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #FED7AA",fontSize:12,color:"#92400E",lineHeight:1.7}}>
-                💡 目標時給にするには単価を<strong>{yen(settings.alertHourlyRate*t.hours)}</strong>以上にするか、作業時間を<strong>{Math.round(t.defaultPrice/settings.alertHourlyRate*10)/10}h</strong>以内に短縮してください。
-              </div>}
+        {hrRates.map(t=>{const isLow=t.rate<settings.alertHourlyRate;return(
+          <div key={t.id} style={{marginBottom:10,padding:"10px 12px",background:isLow?"#FFF7ED":"var(--clr-bg)",borderRadius:10,border:`1.5px solid ${isLow?"#FED7AA":"#E2E8F0"}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div><div style={{fontWeight:700,fontSize:13,color:"#1E293B"}}>{t.name}</div><div style={{fontSize:12,color:"#64748B",marginTop:2}}>{yen(t.defaultPrice)} ÷ {t.hours}h</div></div>
+              <div style={{textAlign:"right"}}><div style={{fontSize:18,fontWeight:700,color:isLow?"#C2410C":"#15803D"}}>{yen(t.rate)}/h</div>{isLow&&<div style={{fontSize:11,color:"#C2410C"}}>⚠ 目標{yen(settings.alertHourlyRate)}/h未満</div>}</div>
             </div>
-          );
-        })}
+            {isLow&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #FED7AA",fontSize:12,color:"#92400E",lineHeight:1.7}}>💡 目標時給にするには単価を<strong>{yen(settings.alertHourlyRate*t.hours)}</strong>以上にするか、作業時間を<strong>{Math.round(t.defaultPrice/settings.alertHourlyRate*10)/10}h</strong>以内に短縮してください。</div>}
+          </div>
+        );})}
       </Card>
     </div>
   );
@@ -725,7 +769,7 @@ function InvoiceTab({jobs,clients}){
         <div style={{border:"1.5px solid #E2E8F0",borderRadius:10,padding:"1.25rem",background:"#FAFAFA"}}>
           <div style={{fontSize:20,fontWeight:700,marginBottom:4,color:"#1E293B"}}>請求書</div>
           <div style={{fontSize:12,color:"#64748B",marginBottom:16}}>{invNum}　{toDay()}</div>
-          <div style={{marginBottom:16,fontSize:14,color:"#1E293B"}}><strong>{clName}</strong> 御中</div>
+          <div style={{marginBottom:16,fontSize:14}}><strong>{clName}</strong> 御中</div>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
             <thead><tr style={{borderBottom:"1.5px solid #E2E8F0"}}><th style={{textAlign:"left",padding:"6px 0",color:"#64748B",fontWeight:600}}>内容</th><th style={{textAlign:"right",padding:"6px 0",color:"#64748B",fontWeight:600}}>金額</th></tr></thead>
             <tbody>{invJ.map(j=>{const rows=[<tr key={j.id}><td style={{padding:"7px 0",color:"#334155"}}>{j.type}（{j.deadline}納品）</td><td style={{padding:"7px 0",textAlign:"right"}}>{yen(j.basePrice)}</td></tr>];if(addonDisp==="separate")j.addOns.forEach(a=>rows.push(<tr key={a.id}><td style={{padding:"4px 0 4px 12px",color:"#64748B",fontSize:12}}>追加料金（{a.reason}{a.customReason?": "+a.customReason:""}）</td><td style={{padding:"4px 0",textAlign:"right",color:"#64748B"}}>{yen(a.amount)}</td></tr>));return rows;})}</tbody>
@@ -739,14 +783,14 @@ function InvoiceTab({jobs,clients}){
 }
 
 // ── CONTRACT ───────────────────────────────────────────────
-function ContractTab({jobs,clients,settings}){
+function ContractTab({jobs,clients}){
   const[selJob,setSelJob]=useState("");
   const[form,setForm]=useState({revisions:3,paymentDays:14,deliveryFormat:"MP4, JPG",copyright:"クライアントに譲渡",additionalNotes:"",paymentTiming:"納品後"});
   const[editTxt,setEditTxt]=useState("");const[generated,setGenerated]=useState(false);
   const gc=id=>clients.find(c=>c.id===id);
   const job=jobs.find(j=>j.id===Number(selJob));const client=job?gc(job.clientId):null;const tp=job?totalPrice(job):0;
   function generate(){
-    const text=["業務委託 受注書","",`発行日: ${toDay()}`,`受注番号: ORD-${Date.now().toString().slice(-6)}`,``,`【依頼者】${client?.name||""}`,`【受注者】（あなたの名前・屋号）`,"","─────────────────────────────","■ 業務内容",`  種別: ${job?.type||""}`,`  納品物: ${form.deliveryFormat}`,`  受注日: ${job?.receiveDate||""}`,`  納品予定日: ${job?.deadline||""}（修正対応完了後の最終納品日）`,"","■ 料金",`  基本料金: ${yen(job?.basePrice||0)}`,...(job?.addOns?.length?[`  追加料金: ${yen(tp-(job?.basePrice||0))}`,`  ─────────────────────`]:[]),`  合計（税込）: ${yen(tp)}`,"","■ 修正について",`  本見積もりに含まれる修正回数: ${form.revisions}回まで`,"  上記を超える修正は追加料金が発生します（都度ご相談）。","  納品日は修正回数の対応完了後を想定しており、修正が増えた場合は","  納品日が後ろ倒しになる可能性があります。","","■ 追加料金について","  素材の量・仕様・構成が当初の想定を大幅に超えた場合、","  事前にご連絡のうえ追加料金が発生することがあります。","  本料金表はあくまで目安であり、作業量により変動する場合があります。","","■ 著作権",`  ${form.copyright}`,"","■ お支払い",`  方法: ${client?.paymentMethod||"銀行振込"}`,`  タイミング: ${form.paymentTiming}`,`  期限: ${form.paymentTiming==="前払い"?"受注確認後":"納品後"} ${form.paymentDays}日以内`,...(client?.paymentDelay?["  ※ 過去の入金遅延により、今回は前払いをお願いしております。"]:[]),"","■ 特記事項",form.additionalNotes||"  なし","","─────────────────────────────","上記内容をご確認のうえ、ご同意いただけましたらご返信ください。","ご不明な点がございましたらお気軽にお問い合わせください。"].join("\n");
+    const text=["業務委託 受注書","",`発行日: ${toDay()}`,`受注番号: ORD-${Date.now().toString().slice(-6)}`,``,`【依頼者】${client?.name||""}`,`【受注者】（あなたの名前・屋号）`,"","─────────────────────────────","■ 業務内容",`  種別: ${job?.type||""}`,`  納品物: ${form.deliveryFormat}`,`  受注日: ${job?.receiveDate||""}`,`  納品予定日: ${job?.deadline||""}（修正対応完了後の最終納品日）`,"","■ 料金",`  基本料金: ${yen(job?.basePrice||0)}`,...(job?.addOns?.length?[`  追加料金: ${yen(tp-(job?.basePrice||0))}`,"  ─────────────────────"]:[]),`  合計（税込）: ${yen(tp)}`,"","■ 修正について",`  本見積もりに含まれる修正回数: ${form.revisions}回まで`,"  上記を超える修正は追加料金が発生します（都度ご相談）。","  納品日は修正回数の対応完了後を想定しており、修正が増えた場合は","  納品日が後ろ倒しになる可能性があります。","","■ 追加料金について","  素材の量・仕様・構成が当初の想定を大幅に超えた場合、","  事前にご連絡のうえ追加料金が発生することがあります。","","■ 著作権",`  ${form.copyright}`,"","■ お支払い",`  方法: ${client?.paymentMethod||"銀行振込"}`,`  タイミング: ${form.paymentTiming}`,`  期限: ${form.paymentTiming==="前払い"?"受注確認後":"納品後"} ${form.paymentDays}日以内`,...(client?.paymentDelay?["  ※ 過去の入金遅延により、今回は前払いをお願いしております。"]:[]),"","■ 特記事項",form.additionalNotes||"  なし","","─────────────────────────────","上記内容をご確認のうえ、ご同意いただけましたらご返信ください。"].join("\n");
     setEditTxt(text);setGenerated(true);
   }
   return(
@@ -755,8 +799,7 @@ function ContractTab({jobs,clients,settings}){
       <Card style={{marginBottom:"1rem"}}>
         <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:"#1E293B"}}>案件を選択</div>
         <select value={selJob} onChange={e=>{setSelJob(e.target.value);setGenerated(false);}} style={{width:"100%",marginBottom:12}}>
-          <option value="">案件を選んでください</option>
-          {jobs.map(j=><option key={j.id} value={j.id}>{gc(j.clientId)?.name} — {j.type} ({j.receiveDate})</option>)}
+          <option value="">案件を選んでください</option>{jobs.map(j=><option key={j.id} value={j.id}>{gc(j.clientId)?.name} — {j.type} ({j.receiveDate})</option>)}
         </select>
         {job&&<><div className="grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <div><Lbl>修正回数</Lbl><input type="number" value={form.revisions} onChange={e=>setForm(f=>({...f,revisions:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
@@ -771,10 +814,7 @@ function ContractTab({jobs,clients,settings}){
       {generated&&<Card>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
           <div style={{fontSize:14,fontWeight:700,color:"#1E293B"}}>受注書（編集可能）</div>
-          <div style={{display:"flex",gap:6}}>
-            <button onClick={()=>navigator.clipboard?.writeText(editTxt).then(()=>alert("コピーしました"))} style={{fontSize:12,padding:"4px 10px"}}><i className="ti ti-copy"/> コピー</button>
-            <button onClick={()=>window.print()} className="no-print" style={{fontSize:12,padding:"4px 10px"}}><i className="ti ti-printer"/> 印刷</button>
-          </div>
+          <div style={{display:"flex",gap:6}}><button onClick={()=>navigator.clipboard?.writeText(editTxt).then(()=>alert("コピーしました"))} style={{fontSize:12,padding:"4px 10px"}}><i className="ti ti-copy"/> コピー</button><button onClick={()=>window.print()} className="no-print" style={{fontSize:12,padding:"4px 10px"}}><i className="ti ti-printer"/> 印刷</button></div>
         </div>
         <textarea value={editTxt} onChange={e=>setEditTxt(e.target.value)} style={{width:"100%",height:400,boxSizing:"border-box",fontFamily:"monospace",fontSize:12,lineHeight:1.8,border:"1.5px solid #E2E8F0",borderRadius:8,padding:"12px",resize:"vertical",color:"#334155",background:"#FAFAFA"}}/>
       </Card>}
@@ -783,7 +823,7 @@ function ContractTab({jobs,clients,settings}){
 }
 
 // ── SETTINGS ───────────────────────────────────────────────
-function SettingsTab({settings,setSettings,clients,setClients}){
+function SettingsTab({settings,setSettings,clients,setClients,onLogout,userEmail}){
   const[local,setLocal]=useState(settings);const[confirmDel,setConfirmDel]=useState(null);const[editCl,setEditCl]=useState(null);
   function save(){setSettings(local);alert("設定を保存しました");}
   function upJT(id,field,val){setLocal(s=>({...s,jobTypes:s.jobTypes.map(t=>t.id===id?{...t,[field]:field==="name"?val:Number(val)}:t)}));}
@@ -795,15 +835,26 @@ function SettingsTab({settings,setSettings,clients,setClients}){
         <h2 style={{fontSize:18,fontWeight:700,color:"#1E293B"}}>設定</h2>
         <button onClick={save} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"6px 22px",fontWeight:700,cursor:"pointer"}}>保存する</button>
       </div>
+
+      {/* account */}
+      <Card style={{marginBottom:"1rem"}}>
+        <div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:10}}>アカウント</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+          <div>
+            <div style={{fontSize:13,color:"#1E293B",fontWeight:600}}>{userEmail}</div>
+            <div style={{fontSize:12,color:"#64748B",marginTop:2}}>データはSupabaseクラウドに同期されています</div>
+          </div>
+          <button onClick={onLogout} style={{fontSize:13,color:"#EF4444",borderColor:"#FECDD3",background:"#FFF1F2",padding:"5px 14px"}}>
+            <i className="ti ti-logout" style={{marginRight:4}}/>ログアウト
+          </button>
+        </div>
+      </Card>
+
       <Card style={{marginBottom:"1rem"}}>
         <div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:10}}>テーマ・表示</div>
         <div style={{marginBottom:12}}>
           <Lbl>テーマカラー（{theme.label}）</Lbl>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:6}}>
-            {PASTEL_THEMES.map(t=><button key={t.id} onClick={()=>setLocal(s=>({...s,themeId:t.id}))} title={t.label} style={{width:36,height:36,borderRadius:"50%",background:t.primary,border:local.themeId===t.id?"3px solid #1E293B":`3px solid ${t.primary}`,cursor:"pointer",position:"relative",padding:0}}>
-              {local.themeId===t.id&&<span style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:16}}>✓</span>}
-            </button>)}
-          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:6}}>{PASTEL_THEMES.map(t=><button key={t.id} onClick={()=>setLocal(s=>({...s,themeId:t.id}))} title={t.label} style={{width:36,height:36,borderRadius:"50%",background:t.primary,border:local.themeId===t.id?"3px solid #1E293B":`3px solid ${t.primary}`,cursor:"pointer",position:"relative",padding:0}}>{local.themeId===t.id&&<span style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:16}}>✓</span>}</button>)}</div>
         </div>
         <div><Lbl>フォントサイズ: {local.fontSize}px</Lbl><input type="range" min={12} max={18} step={1} value={local.fontSize} onChange={e=>setLocal(s=>({...s,fontSize:Number(e.target.value)}))} style={{width:"100%"}}/></div>
       </Card>
@@ -812,11 +863,7 @@ function SettingsTab({settings,setSettings,clients,setClients}){
         <div className="grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <div><Lbl tip={TOOLTIPS.workHours}>1日の作業時間（h）</Lbl><input type="number" value={local.workHoursPerDay} onChange={e=>setLocal(s=>({...s,workHoursPerDay:Number(e.target.value)}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
           <div><Lbl tip={TOOLTIPS.monthlyLimit}>月間案件上限数</Lbl><input type="number" value={local.monthlyJobLimit} onChange={e=>setLocal(s=>({...s,monthlyJobLimit:Number(e.target.value)}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
-          <div style={{gridColumn:"1/-1"}}>
-            <Lbl tip={TOOLTIPS.alertHourlyRate}>時給アラート: {yen(local.alertHourlyRate)}/h</Lbl>
-            <input type="range" min={500} max={5000} step={100} value={local.alertHourlyRate} onChange={e=>setLocal(s=>({...s,alertHourlyRate:Number(e.target.value)}))} style={{width:"100%"}}/>
-            <div style={{fontSize:12,color:"#64748B",marginTop:2}}>この時給を下回る案件にアラートが表示されます</div>
-          </div>
+          <div style={{gridColumn:"1/-1"}}><Lbl tip={TOOLTIPS.alertHourlyRate}>時給アラート: {yen(local.alertHourlyRate)}/h</Lbl><input type="range" min={500} max={5000} step={100} value={local.alertHourlyRate} onChange={e=>setLocal(s=>({...s,alertHourlyRate:Number(e.target.value)}))} style={{width:"100%"}}/><div style={{fontSize:12,color:"#64748B",marginTop:2}}>この時給を下回る案件にアラートが表示されます</div></div>
         </div>
       </Card>
       <Card style={{marginBottom:"1rem"}}>
@@ -847,11 +894,6 @@ function SettingsTab({settings,setSettings,clients,setClients}){
           </div>
         ))}
       </Card>
-      <Card>
-        <div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:10}}>データ管理</div>
-        <div style={{fontSize:12,color:"#64748B",marginBottom:8}}>※ データはSupabaseクラウドに自動保存されています。PCとスマホで同じデータを共有できます。</div>
-        <button onClick={()=>{const b=new Blob([JSON.stringify({settings,clients},null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="freelancekit-backup.json";a.click();}} style={{fontSize:13}}><i className="ti ti-download"/> バックアップ (JSON)</button>
-      </Card>
       {confirmDel&&<Confirm message={confirmDel.type==="jobType"?"この種別を削除しますか？":"このクライアントを削除しますか？"} onConfirm={()=>{if(confirmDel.type==="jobType")rmJT(confirmDel.id);else{setClients(p=>p.filter(c=>c.id!==confirmDel.id));setConfirmDel(null);}}} onCancel={()=>setConfirmDel(null)}/>}
       {editCl&&<Modal title="クライアント編集" onClose={()=>setEditCl(null)}>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -874,67 +916,101 @@ function SettingsTab({settings,setSettings,clients,setClients}){
 
 // ── ROOT APP ───────────────────────────────────────────────
 function App(){
-  const USER_ID=uid();
+  const[user,setUser]=useState(null);
+  const[authLoading,setAuthLoading]=useState(true);
+  const[appLoading,setAppLoading]=useState(false);
   const[activeTab,setActiveTab]=useState("home");
   const[jobs,setJobsRaw]=useState([]);
   const[clients,setClientsRaw]=useState([]);
   const[expenses,setExpensesRaw]=useState([]);
   const[settings,setSettingsRaw]=useState(INIT_SETTINGS);
-  const[loading,setLoading]=useState(true);
   const[syncing,setSyncing]=useState(false);
   const[lastSync,setLastSync]=useState(null);
   const[menuOpen,setMenuOpen]=useState(false);
+  const[showSampleBanner,setShowSampleBanner]=useState(false);
   const syncTimer=useRef(null);
 
-  // load from Supabase on mount
+  // auth state
   useEffect(()=>{
-    async function load(){
-      setLoading(true);
-      try{
-        const[j,c,e,s]=await Promise.all([
-          dbLoad("jobs",USER_ID),dbLoad("clients",USER_ID),
-          dbLoad("expenses",USER_ID),dbLoad("settings",USER_ID)
-        ]);
-        if(j)setJobsRaw(j);
-        if(c)setClientsRaw(c);else setClientsRaw([]);
-        if(e)setExpensesRaw(e);else setExpensesRaw([]);
-        if(s)setSettingsRaw(s);
-      }catch(err){console.error("Load error:",err);}
-      setLoading(false);
-    }
-    load();
+    sb.auth.getSession().then(({data:{session}})=>{
+      setUser(session?.user||null);
+      setAuthLoading(false);
+    });
+    const{data:{subscription}}=sb.auth.onAuthStateChange((_,session)=>{
+      setUser(session?.user||null);
+    });
+    return()=>subscription.unsubscribe();
   },[]);
 
-  // debounced auto-save
+  // load data when user logs in
+  useEffect(()=>{
+    if(!user)return;
+    async function load(){
+      setAppLoading(true);
+      const uid=user.id;
+      try{
+        const[j,c,e,s]=await Promise.all([
+          dbLoad("jobs",uid),dbLoad("clients",uid),
+          dbLoad("expenses",uid),dbLoad("settings",uid)
+        ]);
+        const isNew=!j&&!c&&!e&&!s;
+        setJobsRaw(j||SAMPLE_JOBS);
+        setClientsRaw(c||SAMPLE_CLIENTS);
+        setExpensesRaw(e||SAMPLE_EXPENSES);
+        if(s)setSettingsRaw(s);
+        if(isNew)setShowSampleBanner(true);
+      }catch(err){console.error(err);}
+      setAppLoading(false);
+    }
+    load();
+  },[user]);
+
+  // debounced save
   function scheduleSave(table,data){
     setSyncing(true);
     if(syncTimer.current)clearTimeout(syncTimer.current);
     syncTimer.current=setTimeout(async()=>{
       try{
-        await dbSave(table,USER_ID,data);
+        await dbSave(table,user.id,data);
         setLastSync(new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})+"保存");
-      }catch(err){console.error("Save error:",err);}
+      }catch(err){console.error(err);}
       setSyncing(false);
     },1200);
   }
 
-  function setJobs(v){const next=typeof v==="function"?v(jobs):v;setJobsRaw(next);scheduleSave("jobs",next);}
-  function setClients(v){const next=typeof v==="function"?v(clients):v;setClientsRaw(next);scheduleSave("clients",next);}
-  function setExpenses(v){const next=typeof v==="function"?v(expenses):v;setExpensesRaw(next);scheduleSave("expenses",next);}
-  function setSettings(v){const next=typeof v==="function"?v(settings):v;setSettingsRaw(next);scheduleSave("settings",next);}
+  function setJobs(v){const n=typeof v==="function"?v(jobs):v;setJobsRaw(n);scheduleSave("jobs",n);}
+  function setClients(v){const n=typeof v==="function"?v(clients):v;setClientsRaw(n);scheduleSave("clients",n);}
+  function setExpenses(v){const n=typeof v==="function"?v(expenses):v;setExpensesRaw(n);scheduleSave("expenses",n);}
+  function setSettings(v){const n=typeof v==="function"?v(settings):v;setSettingsRaw(n);scheduleSave("settings",n);}
+
+  async function handleLogout(){
+    await sb.auth.signOut();
+    setJobsRaw([]);setClientsRaw([]);setExpensesRaw([]);setSettingsRaw(INIT_SETTINGS);
+    setLastSync(null);setActiveTab("home");
+  }
 
   const theme=PASTEL_THEMES.find(t=>t.id===settings.themeId)||PASTEL_THEMES[0];
   useEffect(()=>{
     const r=document.documentElement;
     r.style.setProperty("--clr-primary",theme.primary);
-    r.style.setProperty("--clr-accent",theme.accent);
     r.style.setProperty("--clr-bg",theme.bg);
     r.style.setProperty("--clr-card",theme.card);
     document.body.style.background=theme.bg;
     document.body.style.fontSize=settings.fontSize+"px";
   },[theme,settings.fontSize]);
 
-  if(loading)return(
+  // auth loading
+  if(authLoading)return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#F8F8FF"}}>
+      <i className="ti ti-refresh" style={{fontSize:32,color:"#6366F1",animation:"spin 1s linear infinite"}}/>
+    </div>
+  );
+
+  // not logged in
+  if(!user)return<LoginScreen onLogin={u=>setUser(u)}/>;
+
+  // app loading
+  if(appLoading)return(
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",gap:16,background:theme.bg}}>
       <div style={{width:44,height:44,borderRadius:12,background:theme.primary,display:"flex",alignItems:"center",justifyContent:"center"}}>
         <i className="ti ti-briefcase" style={{color:"#fff",fontSize:24}}/>
@@ -952,12 +1028,11 @@ function App(){
     analysis:<AnalysisTab jobs={jobs} clients={clients} settings={settings}/>,
     invoice:<InvoiceTab jobs={jobs} clients={clients} settings={settings}/>,
     contract:<ContractTab jobs={jobs} clients={clients} settings={settings}/>,
-    settings:<SettingsTab settings={settings} setSettings={setSettings} clients={clients} setClients={setClients}/>,
+    settings:<SettingsTab settings={settings} setSettings={setSettings} clients={clients} setClients={setClients} onLogout={handleLogout} userEmail={user.email}/>,
   };
 
   return(
     <div style={{maxWidth:820,margin:"0 auto",padding:"0.75rem",minHeight:"100vh"}}>
-      <h1 className="sr-only">FreelanceKit</h1>
       {/* header */}
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:"0.75rem",padding:"0.75rem 1rem",background:theme.card,borderRadius:12,border:"1.5px solid #E2E8F0",boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
         <div style={{width:32,height:32,borderRadius:8,background:theme.primary,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -965,11 +1040,18 @@ function App(){
         </div>
         <div style={{flex:1}}>
           <div style={{fontSize:16,fontWeight:900,color:theme.primary,letterSpacing:-0.5}}>FreelanceKit</div>
-          <div style={{fontSize:11,color:"#94A3B8"}}>フリーランサー管理ツール</div>
+          <div style={{fontSize:11,color:"#94A3B8"}}>{user.email}</div>
         </div>
-        <SyncBadge syncing={syncing} lastSync={lastSync}/>
+        <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#94A3B8"}}>
+          {syncing
+            ?<><i className="ti ti-refresh" style={{fontSize:13,animation:"spin 1s linear infinite"}}/> 同期中...</>
+            :lastSync
+              ?<><i className="ti ti-cloud-check" style={{fontSize:13,color:"#34D399"}}/> {lastSync}</>
+              :null}
+        </div>
       </div>
-      {/* desktop tabs */}
+
+      {/* tabs */}
       <div style={{display:"flex",gap:2,overflowX:"auto",marginBottom:"1rem",background:theme.card,borderRadius:12,border:"1.5px solid #E2E8F0",padding:"4px"}}>
         {TABS.map(tab=>{const active=activeTab===tab.id;return(
           <button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{padding:"7px 10px",fontSize:12,border:"none",borderRadius:8,background:active?theme.primary:"transparent",color:active?"#fff":"#64748B",fontWeight:active?700:400,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,flex:"0 0 auto"}}>
@@ -977,8 +1059,13 @@ function App(){
           </button>
         );})}
       </div>
+
       {/* content */}
-      <div style={{paddingBottom:80}}>{tabContent[activeTab]}</div>
+      <div style={{paddingBottom:80}}>
+        {showSampleBanner&&<SampleBanner onDismiss={()=>setShowSampleBanner(false)}/>}
+        {tabContent[activeTab]}
+      </div>
+
       {/* mobile bottom nav */}
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:theme.card,borderTop:"1.5px solid #E2E8F0",zIndex:100,padding:"4px 0",display:"none"}} id="mobile-nav">
         <div style={{display:"flex",justifyContent:"space-around",maxWidth:820,margin:"0 auto"}}>
@@ -993,7 +1080,7 @@ function App(){
         </div>
       </div>
       {menuOpen&&<div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,0.4)"}} onClick={()=>setMenuOpen(false)}>
-        <div style={{position:"absolute",bottom:70,left:16,right:16,background:theme.card,borderRadius:16,border:"1.5px solid #E2E8F0",padding:"8px",boxShadow:"0 -8px 32px rgba(0,0,0,0.15)",maxWidth:820,margin:"0 auto"}} onClick={e=>e.stopPropagation()}>
+        <div style={{position:"absolute",bottom:70,left:16,right:16,background:theme.card,borderRadius:16,border:"1.5px solid #E2E8F0",padding:"8px",boxShadow:"0 -8px 32px rgba(0,0,0,0.15)"}} onClick={e=>e.stopPropagation()}>
           {TABS.slice(5).map(tab=>{const active=activeTab===tab.id;return(
             <button key={tab.id} onClick={()=>{setActiveTab(tab.id);setMenuOpen(false);}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",border:"none",borderRadius:10,background:active?theme.primary+"22":"transparent",color:active?theme.primary:"#334155",cursor:"pointer",width:"100%",fontSize:14,fontWeight:active?700:400}}>
               <i className={`ti ${tab.icon}`} style={{fontSize:20}}/>{tab.label}
@@ -1001,17 +1088,12 @@ function App(){
           );})}
         </div>
       </div>}
-      <style>{`
-        @media(max-width:600px){
-          #mobile-nav{display:block!important}
-          .hide-mobile{display:none!important}
-        }
-      `}</style>
+      <style>{`@media(max-width:600px){#mobile-nav{display:block!important}}`}</style>
     </div>
   );
 }
-const root=ReactDOM.createRoot(document.getElementById("root"));
-root.render(React.createElement(App));
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
 </script>
 </body>
 </html>
