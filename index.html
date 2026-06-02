@@ -23,9 +23,7 @@ button{border:1.5px solid #E2E8F0;border-radius:8px;padding:6px 14px;background:
 button:hover{background:#F1F5F9;border-color:#CBD5E1}
 button:active{transform:scale(0.97)}
 button:disabled{opacity:0.45;cursor:default}
-.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
 ::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:4px}
 @media(max-width:600px){
   .grid-2{grid-template-columns:1fr!important}
@@ -41,1231 +39,390 @@ button:disabled{opacity:0.45;cursor:default}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const{useState,useEffect,useMemo,useRef}=React;
 
+const{useState,useEffect,useMemo,useRef}=React;
 const SUPABASE_URL="https://ccdogcakiiflzccmwdbu.supabase.co";
 const SUPABASE_KEY="sb_publishable_LdlVCVzbimh-DFY7WYVDbA_v3VWyoxk";
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-
-const TABS=[
-  {id:"home",label:"ホーム",icon:"ti-home"},
-  {id:"jobs",label:"案件",icon:"ti-clipboard-list"},
-  {id:"calendar",label:"カレンダー",icon:"ti-calendar"},
-  {id:"finance",label:"財務",icon:"ti-coins"},
-  {id:"analysis",label:"分析",icon:"ti-chart-bar"},
-  {id:"invoice",label:"請求書",icon:"ti-file-invoice"},
-  {id:"contract",label:"受注書",icon:"ti-writing"},
-  {id:"settings",label:"設定",icon:"ti-settings"},
-];
+const TABS=[{id:"home",label:"ホーム",icon:"ti-home"},{id:"jobs",label:"案件",icon:"ti-clipboard-list"},{id:"calendar",label:"カレンダー",icon:"ti-calendar"},{id:"finance",label:"財務",icon:"ti-coins"},{id:"analysis",label:"分析",icon:"ti-chart-bar"},{id:"invoice",label:"請求書",icon:"ti-file-invoice"},{id:"contract",label:"受注書",icon:"ti-writing"},{id:"settings",label:"設定",icon:"ti-settings"}];
 const STATUS_LIST=["受付","制作中","修正中","納品済","入金済"];
-const STATUS_STYLE={
-  "受付":{bg:"#EFF6FF",text:"#1D4ED8",border:"#BFDBFE"},
-  "制作中":{bg:"#FFF7ED",text:"#C2410C",border:"#FED7AA"},
-  "修正中":{bg:"#FFF1F2",text:"#BE123C",border:"#FECDD3"},
-  "納品済":{bg:"#F0FDF4",text:"#15803D",border:"#BBF7D0"},
-  "入金済":{bg:"#F0FDFA",text:"#0F766E",border:"#99F6E4"},
-};
-const EXPENSE_LEVELS=[
-  {id:1,label:"必要経費",color:"#EF4444"},
-  {id:2,label:"できれば",color:"#F59E0B"},
-  {id:3,label:"任意",color:"#9CA3AF"},
-];
+const STATUS_STYLE={"受付":{bg:"#EFF6FF",text:"#1D4ED8",border:"#BFDBFE"},"制作中":{bg:"#FFF7ED",text:"#C2410C",border:"#FED7AA"},"修正中":{bg:"#FFF1F2",text:"#BE123C",border:"#FECDD3"},"納品済":{bg:"#F0FDF4",text:"#15803D",border:"#BBF7D0"},"入金済":{bg:"#F0FDFA",text:"#0F766E",border:"#99F6E4"}};
+const EXPENSE_LEVELS=[{id:1,label:"必要経費",color:"#EF4444"},{id:2,label:"できれば",color:"#F59E0B"},{id:3,label:"任意",color:"#9CA3AF"}];
 const PAYMENT_METHODS=["銀行振込","PayPal","PayPay","クレジットカード","現金","その他"];
-const INCOME_WALLS=[
-  {label:"103万円",value:1030000},{label:"130万円",value:1300000},
-  {label:"150万円",value:1500000},{label:"自由設定",value:null},
-];
+const INCOME_WALLS=[{label:"103万円",value:1030000},{label:"130万円",value:1300000},{label:"150万円",value:1500000},{label:"自由設定",value:null}];
 const CLIENT_PALETTE=["#60A5FA","#34D399","#F87171","#A78BFA","#FB923C","#38BDF8","#4ADE80","#F472B6"];
 const ADDON_REASONS=["時間超過","素材量過多","仕様変更","修正超過","急ぎ対応","その他"];
-const PASTEL_THEMES=[
-  {id:"default",label:"デフォルト",primary:"#6366F1",bg:"#F8F8FF",card:"#FFFFFF"},
-  {id:"mint",label:"ミント",primary:"#10B981",bg:"#F0FDF9",card:"#FFFFFF"},
-  {id:"peach",label:"ピーチ",primary:"#F97316",bg:"#FFF7F0",card:"#FFFFFF"},
-  {id:"lavender",label:"ラベンダー",primary:"#8B5CF6",bg:"#F5F3FF",card:"#FFFFFF"},
-  {id:"rose",label:"ローズ",primary:"#E11D48",bg:"#FFF1F2",card:"#FFFFFF"},
-  {id:"sky",label:"スカイ",primary:"#0EA5E9",bg:"#F0F9FF",card:"#FFFFFF"},
-];
-const TOOLTIPS={
-  workHours:"1日に確保できる作業時間。案件登録時に締切まで間に合うかの計算に使用されます。",
-  monthlyLimit:"受注できる月間案件数の上限。超えそうなときはホームでアラートが出ます。",
-  incomeLimit:"副業の年収上限（103万・130万など）を設定。収益がこの額に近づくとアラートが出ます。",
-  alertHourlyRate:"この時給を下回りそうな案件があると、アラートと改善アドバイスを表示します。",
-  jobType:"種別ごとに標準工数と標準単価を設定。時給換算も自動計算されます。",
-  paymentDelay:"このクライアントで過去に入金遅延があった場合にチェック。次回から前払い推奨アラートが出ます。",
-  addOnPrice:"基本料金に追加する費用。時間超過・仕様変更などの理由を選んで請求書に反映できます。",
-  breakdown:"案件の作業内訳。種別・数量・単価を入力すると小計が自動計算されます。分析タブはここのデータを参照します。",
-};
-const DEFAULT_CHECKLIST=[
-  "素材・仕様確認済み","契約書（受注書）発行済み","受注書をクライアントへ送付済み",
-  "前払い受領済み（前払いの場合）","制作着手","初稿・サンプル送付",
-  "修正対応完了","最終納品","請求書発行","入金確認済み",
-];
-const INIT_SETTINGS={
-  workHoursPerDay:4,monthlyJobLimit:20,incomeLimitType:"103万円",
-  incomeLimit:1030000,alertHourlyRate:1000,calendarView:"bar",
-  calendarDateType:"deadline",fontSize:14,themeId:"default",
-  jobTypes:[
-    {id:1,name:"動画編集",hours:6,defaultPrice:15000},
-    {id:2,name:"サムネイル制作",hours:1.5,defaultPrice:3000},
-    {id:3,name:"イラスト",hours:4,defaultPrice:10000},
-  ],
-};
+const PASTEL_THEMES=[{id:"default",label:"デフォルト",primary:"#6366F1",bg:"#F8F8FF",card:"#FFFFFF"},{id:"mint",label:"ミント",primary:"#10B981",bg:"#F0FDF9",card:"#FFFFFF"},{id:"peach",label:"ピーチ",primary:"#F97316",bg:"#FFF7F0",card:"#FFFFFF"},{id:"lavender",label:"ラベンダー",primary:"#8B5CF6",bg:"#F5F3FF",card:"#FFFFFF"},{id:"rose",label:"ローズ",primary:"#E11D48",bg:"#FFF1F2",card:"#FFFFFF"},{id:"sky",label:"スカイ",primary:"#0EA5E9",bg:"#F0F9FF",card:"#FFFFFF"}];
+const TOOLTIPS={workHours:"1日に確保できる作業時間。案件登録時に締切まで間に合うかの計算に使用されます。",monthlyLimit:"受注できる月間案件数の上限。超えそうなときはホームでアラートが出ます。",incomeLimit:"副業の年収上限（103万・130万など）を設定。収益がこの額に近づくとアラートが出ます。",alertHourlyRate:"この時給を下回りそうな案件があると、アラートと改善アドバイスを表示します。",jobType:"種別ごとに標準工数と標準単価を設定。時給換算も自動計算されます。",paymentDelay:"このクライアントで過去に入金遅延があった場合にチェック。次回から前払い推奨アラートが出ます。",addOnPrice:"基本料金に追加する費用。時間超過・仕様変更などの理由を選んで請求書に反映できます。",breakdown:"案件の作業内訳。種別・数量・単価を入力すると小計が自動計算されます。"};
+const DEFAULT_CHECKLIST=["素材・仕様確認済み","契約書（受注書）発行済み","受注書をクライアントへ送付済み","前払い受領済み（前払いの場合）","制作着手","初稿・サンプル送付","修正対応完了","最終納品","請求書発行","入金確認済み"];
+const INIT_SETTINGS={workHoursPerDay:4,monthlyJobLimit:20,incomeLimitType:"103万円",incomeLimit:1030000,alertHourlyRate:1000,calendarView:"bar",calendarDateType:"deadline",fontSize:14,themeId:"default",jobTypes:[{id:1,name:"動画編集",hours:6,defaultPrice:15000},{id:2,name:"サムネイル制作",hours:1.5,defaultPrice:3000},{id:3,name:"イラスト",hours:4,defaultPrice:10000}]};
+const mkCL=()=>DEFAULT_CHECKLIST.map((t,i)=>({id:i,text:t,done:false}));
+const SAMPLE_CLIENTS=[{id:101,name:"田中商事（例）",paymentMethod:"銀行振込",paymentDelay:false,color:CLIENT_PALETTE[0],note:""},{id:102,name:"山田YouTube（例）",paymentMethod:"PayPay",paymentDelay:true,color:CLIENT_PALETTE[2],note:""}];
+const SAMPLE_JOBS=[{id:1001,clientId:101,title:"6月動画＋サムネセット",status:"制作中",breakdown:[{id:1,type:"動画編集",qty:1,unitPrice:15000,note:""},{id:2,type:"サムネイル制作",qty:3,unitPrice:3000,note:""}],addOns:[],receiveDate:"2026-06-01",deadline:"2026-06-15",startDate:"2026-06-03",targetDate:"2026-06-12",estimatedHours:7.5,actualHours:3,paymentType:"後払い",notes:"初回依頼",checklist:mkCL().map((c,i)=>({...c,done:i<2})),invoiced:false,contracted:true},{id:1002,clientId:102,title:"サムネイル5枚",status:"納品済",breakdown:[{id:1,type:"サムネイル制作",qty:5,unitPrice:3000,note:""}],addOns:[{id:1,reason:"修正超過",customReason:"3回追加修正",amount:1500}],receiveDate:"2026-05-20",deadline:"2026-05-25",startDate:"2026-05-21",targetDate:"2026-05-24",estimatedHours:7.5,actualHours:8,paymentType:"後払い",notes:"",checklist:mkCL().map((c,i)=>({...c,done:i<9})),invoiced:true,contracted:true}];
+const SAMPLE_EXPENSES=[{id:201,name:"Adobe CC（例）",amount:6480,type:"monthly",level:1},{id:202,name:"クラウドストレージ（例）",amount:1500,type:"monthly",level:1},{id:203,name:"外付けHDD（例）",amount:15000,type:"one-time",level:2}];
 
-// サンプルデータ
-const mkChecklist=()=>DEFAULT_CHECKLIST.map((t,i)=>({id:i,text:t,done:false}));
-const SAMPLE_CLIENTS=[
-  {id:101,name:"田中商事（例）",paymentMethod:"銀行振込",paymentDelay:false,color:CLIENT_PALETTE[0],note:""},
-  {id:102,name:"山田YouTube（例）",paymentMethod:"PayPay",paymentDelay:true,color:CLIENT_PALETTE[2],note:""},
-];
-const SAMPLE_JOBS=[
-  {id:1001,clientId:101,title:"6月動画＋サムネセット",status:"制作中",
-    breakdown:[
-      {id:1,type:"動画編集",qty:1,unitPrice:15000,note:""},
-      {id:2,type:"サムネイル制作",qty:3,unitPrice:3000,note:""},
-    ],
-    addOns:[],receiveDate:"2026-06-01",deadline:"2026-06-15",startDate:"2026-06-03",targetDate:"2026-06-12",
-    estimatedHours:7.5,actualHours:3,paymentType:"後払い",notes:"初回依頼",
-    checklist:mkChecklist().map((c,i)=>({...c,done:i<2})),invoiced:false,contracted:true},
-  {id:1002,clientId:102,title:"サムネイル5枚",status:"納品済",
-    breakdown:[
-      {id:1,type:"サムネイル制作",qty:5,unitPrice:3000,note:""},
-    ],
-    addOns:[{id:1,reason:"修正超過",customReason:"3回追加修正",amount:1500}],
-    receiveDate:"2026-05-20",deadline:"2026-05-25",startDate:"2026-05-21",targetDate:"2026-05-24",
-    estimatedHours:7.5,actualHours:8,paymentType:"後払い",notes:"",
-    checklist:mkChecklist().map((c,i)=>({...c,done:i<9})),invoiced:true,contracted:true},
-];
-const SAMPLE_EXPENSES=[
-  {id:201,name:"Adobe CC（例）",amount:6480,type:"monthly",level:1},
-  {id:202,name:"クラウドストレージ（例）",amount:1500,type:"monthly",level:1},
-  {id:203,name:"外付けHDD（例）",amount:15000,type:"one-time",level:2},
-];
-
-// ── UTILS ──────────────────────────────────────────────────
 const yen=n=>"¥"+Math.round(n||0).toLocaleString("ja-JP");
 const toDay=()=>new Date().toISOString().slice(0,10);
 const daysUntil=d=>{if(!d)return 999;return Math.ceil((new Date(d)-new Date(new Date().toDateString()))/86400000);};
-// 内訳から合計を計算
 const bdTotal=bd=>(bd||[]).reduce((s,r)=>s+(Number(r.qty||0)*Number(r.unitPrice||0)),0);
-// 追加料金含む合計
 const totalPrice=j=>bdTotal(j.breakdown)+(j.addOns||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
 const hrRate=(price,hours)=>hours>0?Math.round(price/hours):0;
 const thisMonth=()=>{const n=new Date();return`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`;};
 const thisYear=()=>String(new Date().getFullYear());
 
-// ── DB ─────────────────────────────────────────────────────
-async function dbLoad(table,userId){
-  const{data,error}=await sb.from(table).select("data").eq("user_id",userId).single();
-  if(error||!data)return null;
-  return data.data;
-}
-async function dbSave(table,userId,payload){
-  const{data:ex}=await sb.from(table).select("id").eq("user_id",userId).single();
-  if(ex){await sb.from(table).update({data:payload,updated_at:new Date().toISOString()}).eq("user_id",userId);}
-  else{await sb.from(table).insert({user_id:userId,data:payload});}
-}
+async function dbLoad(table,userId){const{data,error}=await sb.from(table).select("data").eq("user_id",userId).single();if(error||!data)return null;return data.data;}
+async function dbSave(table,userId,payload){const{data:ex}=await sb.from(table).select("id").eq("user_id",userId).single();if(ex){await sb.from(table).update({data:payload,updated_at:new Date().toISOString()}).eq("user_id",userId);}else{await sb.from(table).insert({user_id:userId,data:payload});}}
 
-// ── UI PRIMITIVES ──────────────────────────────────────────
 function Tooltip({text,children}){
-  const[show,setShow]=useState(false);
-  const ref=useRef();
+  const[show,setShow]=useState(false);const ref=useRef();
   useEffect(()=>{function h(e){if(ref.current&&!ref.current.contains(e.target))setShow(false);}document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
-  return(
-    <span ref={ref} style={{position:"relative",display:"inline-flex",alignItems:"center"}}>
-      {children}
-      <span onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)} onClick={()=>setShow(s=>!s)}
-        style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:16,height:16,borderRadius:"50%",background:"#F1F5F9",color:"#64748B",fontSize:10,cursor:"help",marginLeft:4,flexShrink:0,border:"1px solid #E2E8F0",userSelect:"none",fontWeight:700}}>?</span>
-      {show&&<span style={{position:"absolute",bottom:"calc(100% + 6px)",left:0,zIndex:9999,background:"#1E293B",color:"#F1F5F9",fontSize:12,padding:"8px 12px",borderRadius:8,whiteSpace:"pre-wrap",maxWidth:220,lineHeight:1.6,boxShadow:"0 4px 20px rgba(0,0,0,0.3)",pointerEvents:"none",minWidth:160}}>
-        {text}<span style={{position:"absolute",top:"100%",left:12,border:"5px solid transparent",borderTopColor:"#1E293B"}}/>
-      </span>}
-    </span>
-  );
+  return(<span ref={ref} style={{position:"relative",display:"inline-flex",alignItems:"center"}}>{children}<span onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)} onClick={()=>setShow(s=>!s)} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:16,height:16,borderRadius:"50%",background:"#F1F5F9",color:"#64748B",fontSize:10,cursor:"help",marginLeft:4,flexShrink:0,border:"1px solid #E2E8F0",userSelect:"none",fontWeight:700}}>?</span>{show&&<span style={{position:"absolute",bottom:"calc(100% + 6px)",left:0,zIndex:9999,background:"#1E293B",color:"#F1F5F9",fontSize:12,padding:"8px 12px",borderRadius:8,whiteSpace:"pre-wrap",maxWidth:220,lineHeight:1.6,boxShadow:"0 4px 20px rgba(0,0,0,0.3)",pointerEvents:"none",minWidth:160}}>{text}<span style={{position:"absolute",top:"100%",left:12,border:"5px solid transparent",borderTopColor:"#1E293B"}}/></span>}</span>);
 }
-function Badge({status}){
-  const s=STATUS_STYLE[status]||{bg:"#F3F4F6",text:"#374151",border:"#D1D5DB"};
-  return<span style={{background:s.bg,color:s.text,border:`1px solid ${s.border}`,borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{status}</span>;
-}
-function Card({children,style,accent}){
-  return<div style={{background:"var(--clr-card)",border:`1.5px solid ${accent||"#E2E8F0"}`,borderRadius:12,padding:"1rem 1.125rem",...style}}>{children}</div>;
-}
-function MetricCard({label,value,sub,warn}){
-  return(
-    <div style={{background:warn?"#FFF1F2":"var(--clr-bg)",border:`1.5px solid ${warn?"#FECDD3":"#E2E8F0"}`,borderRadius:10,padding:"0.875rem 1rem"}}>
-      <div style={{fontSize:11,color:"#64748B",marginBottom:4}}>{label}</div>
-      <div style={{fontSize:20,fontWeight:700,color:warn?"#BE123C":"#1E293B",lineHeight:1.2}}>{value}</div>
-      {sub&&<div style={{fontSize:11,color:warn?"#FB7185":"#64748B",marginTop:2}}>{sub}</div>}
-    </div>
-  );
-}
-function ProgressBar({value,max,label,color}){
-  const pct=Math.min(100,max>0?Math.round((value/max)*100):0);
-  const c=pct>=90?"#EF4444":pct>=70?"#F59E0B":(color||"var(--clr-primary)");
-  return(
-    <div>
-      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#64748B",marginBottom:4}}>
-        <span>{label}</span><span style={{color:pct>=90?"#EF4444":"#64748B",fontWeight:pct>=90?700:400}}>{pct}%</span>
-      </div>
-      <div style={{height:7,background:"#E2E8F0",borderRadius:4,overflow:"hidden"}}>
-        <div style={{height:"100%",width:`${pct}%`,background:c,borderRadius:4,transition:"width 0.5s"}}/>
-      </div>
-    </div>
-  );
-}
-function Modal({title,onClose,children,wide}){
-  useEffect(()=>{document.body.style.overflow="hidden";return()=>{document.body.style.overflow="";};},[]);
-  return(
-    <div className="modal-wrap" onClick={e=>e.target===e.currentTarget&&onClose()}
-      style={{position:"fixed",inset:0,zIndex:500,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div className="modal-inner" style={{background:"#FFFFFF",borderRadius:16,border:"1.5px solid #E2E8F0",padding:"1.25rem",width:"100%",maxWidth:wide?700:520,maxHeight:"88vh",overflowY:"auto",boxShadow:"0 24px 48px rgba(0,0,0,0.2)"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem"}}>
-          <h3 style={{margin:0,fontSize:16,fontWeight:700,color:"#1E293B"}}>{title}</h3>
-          <button onClick={onClose} style={{border:"none",background:"#F1F5F9",color:"#64748B",width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,padding:0}}>×</button>
-        </div>
-        <div style={{color:"#334155"}}>{children}</div>
-      </div>
-    </div>
-  );
-}
-function Confirm({message,onConfirm,onCancel}){
-  return(
-    <div style={{position:"fixed",inset:0,zIndex:600,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div style={{background:"#fff",borderRadius:16,border:"1.5px solid #E2E8F0",padding:"1.5rem",maxWidth:360,width:"100%",boxShadow:"0 24px 48px rgba(0,0,0,0.2)"}}>
-        <div style={{fontSize:14,color:"#1E293B",marginBottom:"1.25rem",lineHeight:1.7}}>{message}</div>
-        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-          <button onClick={onCancel}>キャンセル</button>
-          <button onClick={onConfirm} style={{background:"#EF4444",color:"#fff",border:"none",padding:"6px 18px",borderRadius:8,fontWeight:700}}>削除する</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-function Lbl({children,tip,required}){
-  return(
-    <div style={{fontSize:12,fontWeight:600,color:"#64748B",marginBottom:5,display:"flex",alignItems:"center",gap:2}}>
-      {required&&<span style={{color:"#EF4444",marginRight:2}}>*</span>}
-      {tip?<Tooltip text={tip}>{children}</Tooltip>:children}
-    </div>
-  );
+function Badge({status}){const s=STATUS_STYLE[status]||{bg:"#F3F4F6",text:"#374151",border:"#D1D5DB"};return<span style={{background:s.bg,color:s.text,border:`1px solid ${s.border}`,borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{status}</span>;}
+function Card({children,style,accent}){return<div style={{background:"var(--clr-card)",border:`1.5px solid ${accent||"#E2E8F0"}`,borderRadius:12,padding:"1rem 1.125rem",...style}}>{children}</div>;}
+function MetricCard({label,value,sub,warn,color}){return(<div style={{background:warn?"#FFF1F2":"var(--clr-bg)",border:`1.5px solid ${warn?"#FECDD3":"#E2E8F0"}`,borderRadius:10,padding:"0.875rem 1rem"}}><div style={{fontSize:11,color:"#64748B",marginBottom:4}}>{label}</div><div style={{fontSize:20,fontWeight:700,color:warn?"#BE123C":color||"#1E293B",lineHeight:1.2}}>{value}</div>{sub&&<div style={{fontSize:11,color:warn?"#FB7185":"#64748B",marginTop:2}}>{sub}</div>}</div>);}
+function Modal({title,onClose,children,wide}){useEffect(()=>{document.body.style.overflow="hidden";return()=>{document.body.style.overflow="";};},[]);return(<div className="modal-wrap" onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,zIndex:500,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div className="modal-inner" style={{background:"#FFFFFF",borderRadius:16,border:"1.5px solid #E2E8F0",padding:"1.25rem",width:"100%",maxWidth:wide?700:520,maxHeight:"88vh",overflowY:"auto",boxShadow:"0 24px 48px rgba(0,0,0,0.2)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem"}}><h3 style={{margin:0,fontSize:16,fontWeight:700,color:"#1E293B"}}>{title}</h3><button onClick={onClose} style={{border:"none",background:"#F1F5F9",color:"#64748B",width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,padding:0}}>×</button></div><div style={{color:"#334155"}}>{children}</div></div></div>);}
+function Confirm({message,onConfirm,onCancel}){return(<div style={{position:"fixed",inset:0,zIndex:600,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div style={{background:"#fff",borderRadius:16,border:"1.5px solid #E2E8F0",padding:"1.5rem",maxWidth:360,width:"100%",boxShadow:"0 24px 48px rgba(0,0,0,0.2)"}}><div style={{fontSize:14,color:"#1E293B",marginBottom:"1.25rem",lineHeight:1.7}}>{message}</div><div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={onCancel}>キャンセル</button><button onClick={onConfirm} style={{background:"#EF4444",color:"#fff",border:"none",padding:"6px 18px",borderRadius:8,fontWeight:700}}>削除する</button></div></div></div>);}
+function Lbl({children,tip,required}){return(<div style={{fontSize:12,fontWeight:600,color:"#64748B",marginBottom:5,display:"flex",alignItems:"center",gap:2}}>{required&&<span style={{color:"#EF4444",marginRight:2}}>*</span>}{tip?<Tooltip text={tip}>{children}</Tooltip>:children}</div>);}
+
+function DualProgressBar({paidAmount,unpaidAmount,max,label}){
+  const paidPct=Math.min(100,max>0?Math.round((paidAmount/max)*100):0);
+  const unpaidPct=Math.min(100-paidPct,max>0?Math.round((unpaidAmount/max)*100):0);
+  const totalPct=paidPct+unpaidPct;const warn=totalPct>=90;
+  return(<div><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#64748B",marginBottom:6}}><span>{label}</span><span style={{color:warn?"#EF4444":"#64748B",fontWeight:warn?700:400}}>{totalPct}%</span></div><div style={{height:12,background:"#E2E8F0",borderRadius:6,overflow:"hidden",display:"flex"}}><div style={{width:`${paidPct}%`,background:"#10B981",transition:"width 0.5s",minWidth:paidPct>0?2:0}}/><div style={{width:`${unpaidPct}%`,background:"#60A5FA",transition:"width 0.5s",minWidth:unpaidPct>0?2:0}}/></div><div style={{display:"flex",gap:16,marginTop:6,flexWrap:"wrap"}}><div style={{display:"flex",alignItems:"center",gap:5,fontSize:11}}><div style={{width:10,height:10,borderRadius:2,background:"#10B981",flexShrink:0}}/><span style={{color:"#64748B"}}>入金済</span><strong style={{color:"#1E293B"}}>{yen(paidAmount)}</strong></div><div style={{display:"flex",alignItems:"center",gap:5,fontSize:11}}><div style={{width:10,height:10,borderRadius:2,background:"#60A5FA",flexShrink:0}}/><span style={{color:"#64748B"}}>未入金</span><strong style={{color:"#1E293B"}}>{yen(unpaidAmount)}</strong></div><div style={{display:"flex",alignItems:"center",gap:5,fontSize:11}}><div style={{width:10,height:10,borderRadius:2,background:"#E2E8F0",flexShrink:0}}/><span style={{color:"#64748B"}}>残り枠</span><strong style={{color:"#1E293B"}}>{yen(Math.max(0,max-paidAmount-unpaidAmount))}</strong></div></div></div>);
 }
 
-// ── LOGIN ──────────────────────────────────────────────────
 function LoginScreen({onLogin}){
-  const[mode,setMode]=useState("login");
-  const[email,setEmail]=useState("");const[pass,setPass]=useState("");
+  const[mode,setMode]=useState("login");const[email,setEmail]=useState("");const[pass,setPass]=useState("");
   const[loading,setLoading]=useState(false);const[msg,setMsg]=useState(null);const[err,setErr]=useState(null);
-  async function handleSubmit(){
-    setLoading(true);setErr(null);setMsg(null);
-    try{
-      if(mode==="login"){const{data,error}=await sb.auth.signInWithPassword({email,password:pass});if(error)throw error;onLogin(data.user);}
-      else if(mode==="signup"){const{error}=await sb.auth.signUp({email,password:pass});if(error)throw error;setMsg("登録完了しました。ログインしてください。");setMode("login");}
-      else{const{error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.href});if(error)throw error;setMsg("パスワードリセットメールを送りました。");}
-    }catch(e){setErr(e.message||"エラーが発生しました");}
-    setLoading(false);
-  }
-  const titles={login:"ログイン",signup:"新規登録",reset:"パスワードリセット"};
-  const btnLabels={login:"ログイン",signup:"登録する",reset:"メールを送る"};
-  return(
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F8F8FF",padding:16}}>
-      <div style={{width:"100%",maxWidth:400,animation:"fadeIn 0.3s ease"}}>
-        <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{width:56,height:56,borderRadius:16,background:"#6366F1",display:"inline-flex",alignItems:"center",justifyContent:"center",marginBottom:12}}><i className="ti ti-briefcase" style={{color:"#fff",fontSize:28}}/></div>
-          <div style={{fontSize:24,fontWeight:900,color:"#6366F1"}}>FreelanceKit</div>
-          <div style={{fontSize:13,color:"#94A3B8",marginTop:4}}>フリーランサー管理ツール</div>
-        </div>
-        <div style={{background:"#fff",borderRadius:16,border:"1.5px solid #E2E8F0",padding:"1.75rem",boxShadow:"0 4px 24px rgba(0,0,0,0.08)"}}>
-          <h2 style={{fontSize:16,fontWeight:700,color:"#1E293B",marginBottom:20,textAlign:"center"}}>{titles[mode]}</h2>
-          {err&&<div style={{background:"#FFF1F2",border:"1.5px solid #FECDD3",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#BE123C",marginBottom:14}}>{err}</div>}
-          {msg&&<div style={{background:"#F0FDF4",border:"1.5px solid #BBF7D0",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#15803D",marginBottom:14}}>{msg}</div>}
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <div><Lbl>メールアドレス</Lbl><input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()} placeholder="your@email.com" style={{width:"100%",boxSizing:"border-box"}}/></div>
-            {mode!=="reset"&&<div><Lbl>パスワード</Lbl><input type="password" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()} placeholder={mode==="signup"?"8文字以上":"パスワード"} style={{width:"100%",boxSizing:"border-box"}}/></div>}
-            <button onClick={handleSubmit} disabled={loading||!email||(mode!=="reset"&&!pass)} style={{background:"#6366F1",color:"#fff",border:"none",borderRadius:10,padding:"11px",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:4,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-              {loading&&<i className="ti ti-refresh" style={{animation:"spin 1s linear infinite"}}/>}{loading?"処理中...":btnLabels[mode]}
-            </button>
-          </div>
-          <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}>
-            {mode==="login"&&<><button onClick={()=>{setMode("signup");setErr(null);setMsg(null);}} style={{border:"none",background:"none",color:"#6366F1",fontSize:13,cursor:"pointer",fontWeight:600}}>アカウントをお持ちでない方は新規登録</button><button onClick={()=>{setMode("reset");setErr(null);setMsg(null);}} style={{border:"none",background:"none",color:"#94A3B8",fontSize:12,cursor:"pointer"}}>パスワードを忘れた方</button></>}
-            {mode!=="login"&&<button onClick={()=>{setMode("login");setErr(null);setMsg(null);}} style={{border:"none",background:"none",color:"#6366F1",fontSize:13,cursor:"pointer",fontWeight:600}}>← ログインに戻る</button>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  async function handleSubmit(){setLoading(true);setErr(null);setMsg(null);try{if(mode==="login"){const{data,error}=await sb.auth.signInWithPassword({email,password:pass});if(error)throw error;onLogin(data.user);}else if(mode==="signup"){const{error}=await sb.auth.signUp({email,password:pass});if(error)throw error;setMsg("登録完了しました。ログインしてください。");setMode("login");}else{const{error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.href});if(error)throw error;setMsg("パスワードリセットメールを送りました。");}}catch(e){setErr(e.message||"エラーが発生しました");}setLoading(false);}
+  const titles={login:"ログイン",signup:"新規登録",reset:"パスワードリセット"};const btnLabels={login:"ログイン",signup:"登録する",reset:"メールを送る"};
+  return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F8F8FF",padding:16}}><div style={{width:"100%",maxWidth:400,animation:"fadeIn 0.3s ease"}}><div style={{textAlign:"center",marginBottom:32}}><div style={{width:56,height:56,borderRadius:16,background:"#6366F1",display:"inline-flex",alignItems:"center",justifyContent:"center",marginBottom:12}}><i className="ti ti-briefcase" style={{color:"#fff",fontSize:28}}/></div><div style={{fontSize:24,fontWeight:900,color:"#6366F1"}}>FreelanceKit</div><div style={{fontSize:13,color:"#94A3B8",marginTop:4}}>フリーランサー管理ツール</div></div><div style={{background:"#fff",borderRadius:16,border:"1.5px solid #E2E8F0",padding:"1.75rem",boxShadow:"0 4px 24px rgba(0,0,0,0.08)"}}><h2 style={{fontSize:16,fontWeight:700,color:"#1E293B",marginBottom:20,textAlign:"center"}}>{titles[mode]}</h2>{err&&<div style={{background:"#FFF1F2",border:"1.5px solid #FECDD3",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#BE123C",marginBottom:14}}>{err}</div>}{msg&&<div style={{background:"#F0FDF4",border:"1.5px solid #BBF7D0",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#15803D",marginBottom:14}}>{msg}</div>}<div style={{display:"flex",flexDirection:"column",gap:12}}><div><Lbl>メールアドレス</Lbl><input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()} placeholder="your@email.com" style={{width:"100%",boxSizing:"border-box"}}/></div>{mode!=="reset"&&<div><Lbl>パスワード</Lbl><input type="password" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()} placeholder={mode==="signup"?"8文字以上":"パスワード"} style={{width:"100%",boxSizing:"border-box"}}/></div>}<button onClick={handleSubmit} disabled={loading||!email||(mode!=="reset"&&!pass)} style={{background:"#6366F1",color:"#fff",border:"none",borderRadius:10,padding:"11px",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:4,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{loading&&<i className="ti ti-refresh" style={{animation:"spin 1s linear infinite"}}/>}{loading?"処理中...":btnLabels[mode]}</button></div><div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}>{mode==="login"&&<><button onClick={()=>{setMode("signup");setErr(null);setMsg(null);}} style={{border:"none",background:"none",color:"#6366F1",fontSize:13,cursor:"pointer",fontWeight:600}}>アカウントをお持ちでない方は新規登録</button><button onClick={()=>{setMode("reset");setErr(null);setMsg(null);}} style={{border:"none",background:"none",color:"#94A3B8",fontSize:12,cursor:"pointer"}}>パスワードを忘れた方</button></>}{mode!=="login"&&<button onClick={()=>{setMode("login");setErr(null);setMsg(null);}} style={{border:"none",background:"none",color:"#6366F1",fontSize:13,cursor:"pointer",fontWeight:600}}>← ログインに戻る</button>}</div></div></div></div>);
 }
 
-function SampleBanner({onDismiss}){
-  return(
-    <div style={{background:"linear-gradient(135deg,#6366F1,#8B5CF6)",borderRadius:12,padding:"14px 16px",marginBottom:"1rem",color:"#fff",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-      <i className="ti ti-sparkles" style={{fontSize:20,flexShrink:0}}/>
-      <div style={{flex:1}}><div style={{fontWeight:700,fontSize:14}}>サンプルデータが表示されています</div><div style={{fontSize:12,opacity:0.85,marginTop:2}}>「（例）」と書かれたデータはサンプルです。実際のデータを追加したら削除してください。</div></div>
-      <button onClick={onDismiss} style={{background:"rgba(255,255,255,0.2)",border:"1px solid rgba(255,255,255,0.4)",color:"#fff",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,flexShrink:0}}>わかった</button>
-    </div>
-  );
-}
+function SampleBanner({onDismiss}){return(<div style={{background:"linear-gradient(135deg,#6366F1,#8B5CF6)",borderRadius:12,padding:"14px 16px",marginBottom:"1rem",color:"#fff",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><i className="ti ti-sparkles" style={{fontSize:20,flexShrink:0}}/><div style={{flex:1}}><div style={{fontWeight:700,fontSize:14}}>サンプルデータが表示されています</div><div style={{fontSize:12,opacity:0.85,marginTop:2}}>「（例）」と書かれたデータはサンプルです。実際のデータを追加したら削除してください。</div></div><button onClick={onDismiss} style={{background:"rgba(255,255,255,0.2)",border:"1px solid rgba(255,255,255,0.4)",color:"#fff",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,flexShrink:0}}>わかった</button></div>);}
 
-// ── BREAKDOWN EDITOR ───────────────────────────────────────
 function BreakdownEditor({breakdown,setBreakdown,jobTypes}){
   function addRow(){setBreakdown(prev=>[...prev,{id:Date.now(),type:jobTypes[0]?.name||"",qty:1,unitPrice:jobTypes[0]?.defaultPrice||0,note:""}]);}
   function upRow(id,field,val){setBreakdown(prev=>prev.map(r=>r.id===id?{...r,[field]:val}:r));}
   function rmRow(id){setBreakdown(prev=>prev.filter(r=>r.id!==id));}
-  function moveRow(id,dir){
-    setBreakdown(prev=>{
-      const idx=prev.findIndex(r=>r.id===id);
-      if(idx<0)return prev;
-      const next=[...prev];
-      const swap=idx+dir;
-      if(swap<0||swap>=next.length)return prev;
-      [next[idx],next[swap]]=[next[swap],next[idx]];
-      return next;
-    });
-  }
+  function moveRow(id,dir){setBreakdown(prev=>{const idx=prev.findIndex(r=>r.id===id);if(idx<0)return prev;const next=[...prev];const swap=idx+dir;if(swap<0||swap>=next.length)return prev;[next[idx],next[swap]]=[next[swap],next[idx]];return next;});}
   const total=bdTotal(breakdown);
-  return(
-    <div>
-      {/* header */}
-      <div style={{display:"grid",gridTemplateColumns:"32px 1fr 60px 100px 80px 1fr 60px",gap:4,marginBottom:4,alignItems:"center"}}>
-        <div/>
-        <div style={{fontSize:11,fontWeight:600,color:"#94A3B8"}}>種別</div>
-        <div style={{fontSize:11,fontWeight:600,color:"#94A3B8",textAlign:"center"}}>数量</div>
-        <div style={{fontSize:11,fontWeight:600,color:"#94A3B8",textAlign:"right"}}>単価</div>
-        <div style={{fontSize:11,fontWeight:600,color:"#94A3B8",textAlign:"right"}}>小計</div>
-        <div style={{fontSize:11,fontWeight:600,color:"#94A3B8"}}>メモ</div>
-        <div/>
-      </div>
-      {breakdown.map((r,idx)=>{
-        const sub=Number(r.qty||0)*Number(r.unitPrice||0);
-        return(
-          <div key={r.id} style={{display:"grid",gridTemplateColumns:"32px 1fr 60px 100px 80px 1fr 60px",gap:4,marginBottom:5,alignItems:"center"}}>
-            {/* sort */}
-            <div style={{display:"flex",flexDirection:"column",gap:1}}>
-              <button onClick={()=>moveRow(r.id,-1)} disabled={idx===0} style={{padding:"1px 4px",fontSize:10,lineHeight:1,border:"1px solid #E2E8F0",borderRadius:4,minHeight:0}}>▲</button>
-              <button onClick={()=>moveRow(r.id,1)} disabled={idx===breakdown.length-1} style={{padding:"1px 4px",fontSize:10,lineHeight:1,border:"1px solid #E2E8F0",borderRadius:4,minHeight:0}}>▼</button>
-            </div>
-            <select value={r.type} onChange={e=>upRow(r.id,"type",e.target.value)} style={{fontSize:12,padding:"5px 6px"}}>
-              {jobTypes.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}
-              <option value="その他">その他</option>
-            </select>
-            <input type="number" value={r.qty} min={1} onChange={e=>upRow(r.id,"qty",e.target.value)} style={{fontSize:12,padding:"5px 6px",textAlign:"center"}}/>
-            <input type="number" value={r.unitPrice} onChange={e=>upRow(r.id,"unitPrice",e.target.value)} style={{fontSize:12,padding:"5px 6px",textAlign:"right"}}/>
-            <div style={{fontSize:12,fontWeight:600,color:"#1E293B",textAlign:"right",padding:"0 4px"}}>{yen(sub)}</div>
-            <input placeholder="メモ" value={r.note||""} onChange={e=>upRow(r.id,"note",e.target.value)} style={{fontSize:12,padding:"5px 6px"}}/>
-            <button onClick={()=>rmRow(r.id)} style={{padding:"4px",color:"#EF4444",border:"1px solid #FECDD3",background:"#FFF1F2",borderRadius:6,fontSize:13,fontWeight:700}}>×</button>
-          </div>
-        );
-      })}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
-        <button onClick={addRow} style={{fontSize:12,padding:"3px 10px",color:"var(--clr-primary)",borderColor:"var(--clr-primary)",background:"transparent"}}>+ 行を追加</button>
-        <div style={{fontSize:13,fontWeight:700,color:"#1E293B"}}>内訳合計: {yen(total)}</div>
-      </div>
-    </div>
-  );
+  return(<div><div style={{display:"grid",gridTemplateColumns:"28px 1fr 56px 96px 72px 1fr 28px",gap:4,marginBottom:4,alignItems:"center"}}><div/><div style={{fontSize:11,fontWeight:600,color:"#94A3B8"}}>種別</div><div style={{fontSize:11,fontWeight:600,color:"#94A3B8",textAlign:"center"}}>数量</div><div style={{fontSize:11,fontWeight:600,color:"#94A3B8",textAlign:"right"}}>単価</div><div style={{fontSize:11,fontWeight:600,color:"#94A3B8",textAlign:"right"}}>小計</div><div style={{fontSize:11,fontWeight:600,color:"#94A3B8"}}>メモ</div><div/></div>{breakdown.map((r,idx)=>{const sub=Number(r.qty||0)*Number(r.unitPrice||0);return(<div key={r.id} style={{display:"grid",gridTemplateColumns:"28px 1fr 56px 96px 72px 1fr 28px",gap:4,marginBottom:5,alignItems:"center"}}><div style={{display:"flex",flexDirection:"column",gap:1}}><button onClick={()=>moveRow(r.id,-1)} disabled={idx===0} style={{padding:"1px 3px",fontSize:9,lineHeight:1,border:"1px solid #E2E8F0",borderRadius:3,minHeight:0}}>▲</button><button onClick={()=>moveRow(r.id,1)} disabled={idx===breakdown.length-1} style={{padding:"1px 3px",fontSize:9,lineHeight:1,border:"1px solid #E2E8F0",borderRadius:3,minHeight:0}}>▼</button></div><select value={r.type} onChange={e=>upRow(r.id,"type",e.target.value)} style={{fontSize:12,padding:"5px 6px"}}>{jobTypes.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}<option value="その他">その他</option></select><input type="number" value={r.qty} min={1} onChange={e=>upRow(r.id,"qty",e.target.value)} style={{fontSize:12,padding:"5px 6px",textAlign:"center"}}/><input type="number" value={r.unitPrice} onChange={e=>upRow(r.id,"unitPrice",e.target.value)} style={{fontSize:12,padding:"5px 6px",textAlign:"right"}}/><div style={{fontSize:12,fontWeight:600,color:"#1E293B",textAlign:"right",padding:"0 2px"}}>{yen(sub)}</div><input placeholder="メモ" value={r.note||""} onChange={e=>upRow(r.id,"note",e.target.value)} style={{fontSize:12,padding:"5px 6px"}}/><button onClick={()=>rmRow(r.id)} style={{padding:"3px",color:"#EF4444",border:"1px solid #FECDD3",background:"#FFF1F2",borderRadius:6,fontSize:12,fontWeight:700}}>×</button></div>);})}
+  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}><button onClick={addRow} style={{fontSize:12,padding:"3px 10px",color:"var(--clr-primary)",borderColor:"var(--clr-primary)",background:"transparent"}}>+ 行を追加</button><div style={{fontSize:13,fontWeight:700,color:"#1E293B"}}>内訳合計: {yen(total)}</div></div></div>);
 }
 
-// ── JOB MODAL ──────────────────────────────────────────────
 function JobModal({job,clients,settings,onSave,onAddClient,onClose}){
   const defBd=()=>[{id:Date.now(),type:settings.jobTypes[0]?.name||"",qty:1,unitPrice:settings.jobTypes[0]?.defaultPrice||0,note:""}];
-  const blank={
-    clientId:clients[0]?.id||null,title:"",status:"受付",
-    breakdown:defBd(),addOns:[],
-    receiveDate:toDay(),deadline:"",startDate:toDay(),targetDate:"",
-    estimatedHours:settings.jobTypes[0]?.hours||1,actualHours:0,
-    paymentType:"後払い",notes:"",
-    checklist:DEFAULT_CHECKLIST.map((t,i)=>({id:i,text:t,done:false})),
-    invoiced:false,contracted:false
-  };
-  const[form,setForm]=useState(job||blank);
-  const[breakdown,setBreakdown]=useState((job?.breakdown)||defBd());
-  const[newCk,setNewCk]=useState("");
-  const[addingCl,setAddingCl]=useState(false);
-  const[newClName,setNewClName]=useState("");
-
-  const selCl=clients.find(c=>c.id===form.clientId);
-  const bdTot=bdTotal(breakdown);
-  const addonTot=(form.addOns||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);
-  const tp=bdTot+addonTot;
-  const estRate=Number(form.estimatedHours)>0?hrRate(tp,Number(form.estimatedHours)):0;
-  const actRate=Number(form.actualHours)>0?hrRate(tp,Number(form.actualHours)):0;
-  const rw=estRate>0&&estRate<settings.alertHourlyRate;
-  const arw=actRate>0&&actRate<settings.alertHourlyRate;
-  const daysAvail=form.deadline?daysUntil(form.deadline)*settings.workHoursPerDay:null;
-  const hw=daysAvail!==null&&daysAvail<Number(form.estimatedHours);
-
+  const blank={clientId:clients[0]?.id||null,title:"",status:"受付",breakdown:defBd(),addOns:[],receiveDate:toDay(),deadline:"",startDate:toDay(),targetDate:"",estimatedHours:settings.jobTypes[0]?.hours||1,actualHours:0,paymentType:"後払い",notes:"",checklist:DEFAULT_CHECKLIST.map((t,i)=>({id:i,text:t,done:false})),invoiced:false,contracted:false};
+  const[form,setForm]=useState(job||blank);const[breakdown,setBreakdown]=useState((job?.breakdown)||defBd());
+  const[newCk,setNewCk]=useState("");const[addingCl,setAddingCl]=useState(false);const[newClName,setNewClName]=useState("");
+  const selCl=clients.find(c=>c.id===form.clientId);const bdTot=bdTotal(breakdown);const addonTot=(form.addOns||[]).reduce((s,a)=>s+(Number(a.amount)||0),0);const tp=bdTot+addonTot;
+  const estRate=Number(form.estimatedHours)>0?hrRate(tp,Number(form.estimatedHours)):0;const actRate=Number(form.actualHours)>0?hrRate(tp,Number(form.actualHours)):0;
+  const rw=estRate>0&&estRate<settings.alertHourlyRate;const arw=actRate>0&&actRate<settings.alertHourlyRate;
+  const daysAvail=form.deadline?daysUntil(form.deadline)*settings.workHoursPerDay:null;const hw=daysAvail!==null&&daysAvail<Number(form.estimatedHours);
   function addAddon(){setForm(f=>({...f,addOns:[...(f.addOns||[]),{id:Date.now(),reason:"その他",customReason:"",amount:0}]}));}
   function upAddon(id,k,v){setForm(f=>({...f,addOns:f.addOns.map(a=>a.id===id?{...a,[k]:v}:a)}));}
   function rmAddon(id){setForm(f=>({...f,addOns:f.addOns.filter(a=>a.id!==id)}));}
   function togCk(id){setForm(f=>({...f,checklist:f.checklist.map(c=>c.id===id?{...c,done:!c.done}:c)}));}
   function addCk(){if(!newCk.trim())return;setForm(f=>({...f,checklist:[...f.checklist,{id:Date.now(),text:newCk.trim(),done:false}]}));setNewCk("");}
   function rmCk(id){setForm(f=>({...f,checklist:f.checklist.filter(c=>c.id!==id)}));}
-  function save(){
-    if(!form.clientId||!form.deadline)return alert("クライアントと締め切り日は必須です");
-    if(breakdown.length===0)return alert("内訳を1行以上入力してください");
-    onSave({...form,breakdown,estimatedHours:Number(form.estimatedHours),actualHours:Number(form.actualHours)});
-    onClose();
-  }
-  const inp={width:"100%",boxSizing:"border-box"};
-  const sect={background:"#F8FAFC",borderRadius:10,border:"1.5px solid #E2E8F0",padding:"12px 14px"};
-
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      {hw&&<div style={{background:"#FFF1F2",border:"1.5px solid #FECDD3",borderRadius:8,padding:"8px 12px",fontSize:13,color:"#BE123C"}}><i className="ti ti-alert-triangle" style={{marginRight:6}}/>作業可能時間が不足しています（必要:{form.estimatedHours}h / 確保可能:{daysAvail?.toFixed(1)}h）</div>}
-      {selCl?.paymentDelay&&<div style={{background:"#FFF7ED",border:"1.5px solid #FED7AA",borderRadius:8,padding:"8px 12px",fontSize:13,color:"#C2410C"}}><i className="ti ti-shield-exclamation" style={{marginRight:6}}/>このクライアントは過去に入金遅延があります。前払いを推奨します。</div>}
-
-      {/* 案件名 */}
-      <div><Lbl required>案件名</Lbl><input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="例: 6月動画＋サムネセット" style={inp}/></div>
-
-      <div className="grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <div>
-          <Lbl required>クライアント</Lbl>
-          <select value={form.clientId||""} onChange={e=>setForm(f=>({...f,clientId:Number(e.target.value)}))} style={inp}>
-            <option value="">選択</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.paymentDelay?" ⚠":""}</option>)}
-          </select>
-          <button onClick={()=>setAddingCl(true)} style={{fontSize:11,marginTop:4,padding:"2px 8px",color:"var(--clr-primary)",borderColor:"var(--clr-primary)",background:"transparent"}}>+ 新規クライアント</button>
-        </div>
-        <div><Lbl>ステータス</Lbl><select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))} style={inp}>{STATUS_LIST.map(s=><option key={s}>{s}</option>)}</select></div>
-      </div>
-
-      <div className="grid-3" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-        <div><Lbl>支払方法</Lbl><select value={form.paymentType} onChange={e=>setForm(f=>({...f,paymentType:e.target.value}))} style={inp}><option>前払い</option><option>後払い</option></select></div>
-        <div><Lbl>推定工数(h)</Lbl><input type="number" value={form.estimatedHours} onChange={e=>setForm(f=>({...f,estimatedHours:e.target.value}))} style={inp} step="0.5"/></div>
-        <div><Lbl>実績工数(h)</Lbl><input type="number" value={form.actualHours} onChange={e=>setForm(f=>({...f,actualHours:e.target.value}))} style={inp} step="0.5"/></div>
-      </div>
-
-      <div className="grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <div><Lbl>受付日</Lbl><input type="date" value={form.receiveDate} onChange={e=>setForm(f=>({...f,receiveDate:e.target.value}))} style={inp}/></div>
-        <div><Lbl required>締め切り日</Lbl><input type="date" value={form.deadline} onChange={e=>setForm(f=>({...f,deadline:e.target.value}))} style={inp}/></div>
-        <div><Lbl>取り掛かり日</Lbl><input type="date" value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value}))} style={inp}/></div>
-        <div><Lbl>目標納品日</Lbl><input type="date" value={form.targetDate} onChange={e=>setForm(f=>({...f,targetDate:e.target.value}))} style={inp}/></div>
-      </div>
-
-      {/* 内訳 */}
-      <div style={sect}>
-        <div style={{fontSize:13,fontWeight:700,color:"#334155",marginBottom:10,display:"flex",alignItems:"center",gap:4}}>
-          <Tooltip text={TOOLTIPS.breakdown}>作業内訳</Tooltip>
-        </div>
-        <BreakdownEditor breakdown={breakdown} setBreakdown={setBreakdown} jobTypes={settings.jobTypes}/>
-      </div>
-
-      {/* 追加料金 */}
-      <div style={sect}>
-        <div style={{fontSize:13,fontWeight:700,color:"#334155",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
-          <Tooltip text={TOOLTIPS.addOnPrice}>追加料金</Tooltip>
-        </div>
-        {(form.addOns||[]).map(a=>(
-          <div key={a.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 80px 28px",gap:6,marginBottom:6,alignItems:"center"}}>
-            <select value={a.reason} onChange={e=>upAddon(a.id,"reason",e.target.value)} style={{fontSize:12,padding:"5px 6px",borderRadius:6,border:"1.5px solid #E2E8F0"}}>{ADDON_REASONS.map(r=><option key={r}>{r}</option>)}</select>
-            <input placeholder="詳細" value={a.customReason||""} onChange={e=>upAddon(a.id,"customReason",e.target.value)} style={{fontSize:12,padding:"5px 8px"}}/>
-            <input type="number" value={a.amount} onChange={e=>upAddon(a.id,"amount",e.target.value)} style={{fontSize:12,padding:"5px 8px"}} placeholder="金額"/>
-            <button onClick={()=>rmAddon(a.id)} style={{padding:"4px",color:"#EF4444",border:"1px solid #FECDD3",background:"#FFF1F2",borderRadius:6,fontWeight:700,fontSize:14}}>×</button>
-          </div>
-        ))}
-        <button onClick={addAddon} style={{fontSize:12,padding:"3px 10px",color:"var(--clr-primary)",borderColor:"var(--clr-primary)",background:"transparent"}}>+ 追加料金を追加</button>
-
-        {/* 合計 */}
-        <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #E2E8F0"}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#64748B",marginBottom:4}}>
-            <span>内訳合計</span><span>{yen(bdTot)}</span>
-          </div>
-          {addonTot>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#64748B",marginBottom:4}}>
-            <span>追加料金</span><span>{yen(addonTot)}</span>
-          </div>}
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:16,fontWeight:700,color:"#1E293B",borderTop:"1px solid #E2E8F0",paddingTop:6,marginTop:4}}>
-            <span>請求合計</span><span>{yen(tp)}</span>
-          </div>
-        </div>
-        {estRate>0&&<div style={{fontSize:12,color:rw?"#C2410C":"#64748B",marginTop:4}}>推定時給: {yen(estRate)}/h{rw?` ⚠ 目標${yen(settings.alertHourlyRate)}/h未満`:""}</div>}
-        {actRate>0&&<div style={{fontSize:12,color:arw?"#C2410C":"#15803D",marginTop:2}}>実績時給: {yen(actRate)}/h</div>}
-        {(rw||arw)&&<div style={{fontSize:12,color:"#92400E",background:"#FFFBEB",borderRadius:6,padding:"6px 10px",marginTop:6,lineHeight:1.7}}>
-          💡 目標時給{yen(settings.alertHourlyRate)}/hにするには請求を<strong>{yen(settings.alertHourlyRate*Number(form.actualHours||form.estimatedHours))}</strong>以上に調整してください。
-        </div>}
-      </div>
-
-      {/* チェックリスト */}
-      <div style={sect}>
-        <div style={{fontSize:13,fontWeight:700,color:"#334155",marginBottom:8}}>チェックリスト <span style={{fontSize:12,color:"#64748B",fontWeight:400}}>{form.checklist.filter(c=>c.done).length}/{form.checklist.length}</span></div>
-        {form.checklist.map(c=>(
-          <div key={c.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
-            <input type="checkbox" checked={c.done} onChange={()=>togCk(c.id)} style={{width:15,height:15,accentColor:"var(--clr-primary)",flexShrink:0}}/>
-            <span style={{flex:1,fontSize:13,textDecoration:c.done?"line-through":"none",color:c.done?"#94A3B8":"#334155"}}>{c.text}</span>
-            <button onClick={()=>rmCk(c.id)} style={{fontSize:12,padding:"1px 6px",color:"#94A3B8",border:"none",background:"none"}}>×</button>
-          </div>
-        ))}
-        <div style={{display:"flex",gap:6,marginTop:6}}>
-          <input value={newCk} onChange={e=>setNewCk(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCk()} placeholder="項目を追加..." style={{flex:1,fontSize:12}}/>
-          <button onClick={addCk} style={{fontSize:12,padding:"4px 10px"}}>追加</button>
-        </div>
-      </div>
-
-      <div><Lbl>メモ</Lbl><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{width:"100%",height:56,boxSizing:"border-box",resize:"vertical",fontSize:13}}/></div>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end",borderTop:"1px solid #E2E8F0",paddingTop:12}}>
-        <button onClick={onClose}>キャンセル</button>
-        <button onClick={save} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"7px 22px",fontWeight:700,cursor:"pointer"}}>保存する</button>
-      </div>
-
-      {addingCl&&<Modal title="新規クライアント" onClose={()=>setAddingCl(false)}>
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          <div><Lbl>クライアント名</Lbl><input value={newClName} onChange={e=>setNewClName(e.target.value)} style={{width:"100%",boxSizing:"border-box"}}/></div>
-          <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-            <button onClick={()=>setAddingCl(false)}>キャンセル</button>
-            <button onClick={()=>{if(newClName.trim()){const nc={id:Date.now(),name:newClName.trim(),paymentMethod:"銀行振込",paymentDelay:false,color:CLIENT_PALETTE[Math.floor(Math.random()*CLIENT_PALETTE.length)],note:""};onAddClient(nc);setForm(f=>({...f,clientId:nc.id}));setAddingCl(false);}}} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"6px 18px",fontWeight:700,cursor:"pointer"}}>追加</button>
-          </div>
-        </div>
-      </Modal>}
-    </div>
-  );
+  function save(){if(!form.clientId||!form.deadline)return alert("クライアントと締め切り日は必須です");if(breakdown.length===0)return alert("内訳を1行以上入力してください");onSave({...form,breakdown,estimatedHours:Number(form.estimatedHours),actualHours:Number(form.actualHours)});onClose();}
+  const inp={width:"100%",boxSizing:"border-box"};const sect={background:"#F8FAFC",borderRadius:10,border:"1.5px solid #E2E8F0",padding:"12px 14px"};
+  return(<div style={{display:"flex",flexDirection:"column",gap:12}}>
+    {hw&&<div style={{background:"#FFF1F2",border:"1.5px solid #FECDD3",borderRadius:8,padding:"8px 12px",fontSize:13,color:"#BE123C"}}><i className="ti ti-alert-triangle" style={{marginRight:6}}/>作業可能時間が不足しています（必要:{form.estimatedHours}h / 確保可能:{daysAvail?.toFixed(1)}h）</div>}
+    {selCl?.paymentDelay&&<div style={{background:"#FFF7ED",border:"1.5px solid #FED7AA",borderRadius:8,padding:"8px 12px",fontSize:13,color:"#C2410C"}}><i className="ti ti-shield-exclamation" style={{marginRight:6}}/>このクライアントは過去に入金遅延があります。前払いを推奨します。</div>}
+    <div><Lbl required>案件名</Lbl><input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="例: 6月動画＋サムネセット" style={inp}/></div>
+    <div className="grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><Lbl required>クライアント</Lbl><select value={form.clientId||""} onChange={e=>setForm(f=>({...f,clientId:Number(e.target.value)}))} style={inp}><option value="">選択</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.paymentDelay?" ⚠":""}</option>)}</select><button onClick={()=>setAddingCl(true)} style={{fontSize:11,marginTop:4,padding:"2px 8px",color:"var(--clr-primary)",borderColor:"var(--clr-primary)",background:"transparent"}}>+ 新規クライアント</button></div><div><Lbl>ステータス</Lbl><select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))} style={inp}>{STATUS_LIST.map(s=><option key={s}>{s}</option>)}</select></div></div>
+    <div className="grid-3" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}><div><Lbl>支払方法</Lbl><select value={form.paymentType} onChange={e=>setForm(f=>({...f,paymentType:e.target.value}))} style={inp}><option>前払い</option><option>後払い</option></select></div><div><Lbl>推定工数(h)</Lbl><input type="number" value={form.estimatedHours} onChange={e=>setForm(f=>({...f,estimatedHours:e.target.value}))} style={inp} step="0.5"/></div><div><Lbl>実績工数(h)</Lbl><input type="number" value={form.actualHours} onChange={e=>setForm(f=>({...f,actualHours:e.target.value}))} style={inp} step="0.5"/></div></div>
+    <div className="grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><Lbl>受付日</Lbl><input type="date" value={form.receiveDate} onChange={e=>setForm(f=>({...f,receiveDate:e.target.value}))} style={inp}/></div><div><Lbl required>締め切り日</Lbl><input type="date" value={form.deadline} onChange={e=>setForm(f=>({...f,deadline:e.target.value}))} style={inp}/></div><div><Lbl>取り掛かり日</Lbl><input type="date" value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value}))} style={inp}/></div><div><Lbl>目標納品日</Lbl><input type="date" value={form.targetDate} onChange={e=>setForm(f=>({...f,targetDate:e.target.value}))} style={inp}/></div></div>
+    <div style={sect}><div style={{fontSize:13,fontWeight:700,color:"#334155",marginBottom:10,display:"flex",alignItems:"center",gap:4}}><Tooltip text={TOOLTIPS.breakdown}>作業内訳</Tooltip></div><BreakdownEditor breakdown={breakdown} setBreakdown={setBreakdown} jobTypes={settings.jobTypes}/></div>
+    <div style={sect}><div style={{fontSize:13,fontWeight:700,color:"#334155",marginBottom:8,display:"flex",alignItems:"center",gap:4}}><Tooltip text={TOOLTIPS.addOnPrice}>追加料金</Tooltip></div>{(form.addOns||[]).map(a=>(<div key={a.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 80px 28px",gap:6,marginBottom:6,alignItems:"center"}}><select value={a.reason} onChange={e=>upAddon(a.id,"reason",e.target.value)} style={{fontSize:12,padding:"5px 6px",borderRadius:6,border:"1.5px solid #E2E8F0"}}>{ADDON_REASONS.map(r=><option key={r}>{r}</option>)}</select><input placeholder="詳細" value={a.customReason||""} onChange={e=>upAddon(a.id,"customReason",e.target.value)} style={{fontSize:12,padding:"5px 8px"}}/><input type="number" value={a.amount} onChange={e=>upAddon(a.id,"amount",e.target.value)} style={{fontSize:12,padding:"5px 8px"}} placeholder="金額"/><button onClick={()=>rmAddon(a.id)} style={{padding:"4px",color:"#EF4444",border:"1px solid #FECDD3",background:"#FFF1F2",borderRadius:6,fontWeight:700,fontSize:14}}>×</button></div>))}<button onClick={addAddon} style={{fontSize:12,padding:"3px 10px",color:"var(--clr-primary)",borderColor:"var(--clr-primary)",background:"transparent"}}>+ 追加料金を追加</button>
+    <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #E2E8F0"}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#64748B",marginBottom:3}}><span>内訳合計</span><span>{yen(bdTot)}</span></div>{addonTot>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#64748B",marginBottom:3}}><span>追加料金</span><span>{yen(addonTot)}</span></div>}<div style={{display:"flex",justifyContent:"space-between",fontSize:16,fontWeight:700,color:"#1E293B",borderTop:"1px solid #E2E8F0",paddingTop:6,marginTop:4}}><span>請求合計</span><span>{yen(tp)}</span></div></div>
+    {estRate>0&&<div style={{fontSize:12,color:rw?"#C2410C":"#64748B",marginTop:4}}>推定時給: {yen(estRate)}/h{rw?` ⚠ 目標${yen(settings.alertHourlyRate)}/h未満`:""}</div>}{actRate>0&&<div style={{fontSize:12,color:arw?"#C2410C":"#15803D",marginTop:2}}>実績時給: {yen(actRate)}/h</div>}{(rw||arw)&&<div style={{fontSize:12,color:"#92400E",background:"#FFFBEB",borderRadius:6,padding:"6px 10px",marginTop:6,lineHeight:1.7}}>💡 目標時給{yen(settings.alertHourlyRate)}/hにするには請求を<strong>{yen(settings.alertHourlyRate*Number(form.actualHours||form.estimatedHours))}</strong>以上に調整してください。</div>}</div>
+    <div style={sect}><div style={{fontSize:13,fontWeight:700,color:"#334155",marginBottom:8}}>チェックリスト <span style={{fontSize:12,color:"#64748B",fontWeight:400}}>{form.checklist.filter(c=>c.done).length}/{form.checklist.length}</span></div>{form.checklist.map(c=>(<div key={c.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}><input type="checkbox" checked={c.done} onChange={()=>togCk(c.id)} style={{width:15,height:15,accentColor:"var(--clr-primary)",flexShrink:0,cursor:"pointer"}}/><span style={{flex:1,fontSize:13,textDecoration:c.done?"line-through":"none",color:c.done?"#94A3B8":"#334155"}}>{c.text}</span><button onClick={()=>rmCk(c.id)} style={{fontSize:12,padding:"1px 6px",color:"#94A3B8",border:"none",background:"none"}}>×</button></div>))}<div style={{display:"flex",gap:6,marginTop:6}}><input value={newCk} onChange={e=>setNewCk(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCk()} placeholder="項目を追加..." style={{flex:1,fontSize:12}}/><button onClick={addCk} style={{fontSize:12,padding:"4px 10px"}}>追加</button></div></div>
+    <div><Lbl>メモ</Lbl><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{width:"100%",height:56,boxSizing:"border-box",resize:"vertical",fontSize:13}}/></div>
+    <div style={{display:"flex",gap:8,justifyContent:"flex-end",borderTop:"1px solid #E2E8F0",paddingTop:12}}><button onClick={onClose}>キャンセル</button><button onClick={save} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"7px 22px",fontWeight:700,cursor:"pointer"}}>保存する</button></div>
+    {addingCl&&<Modal title="新規クライアント" onClose={()=>setAddingCl(false)}><div style={{display:"flex",flexDirection:"column",gap:10}}><div><Lbl>クライアント名</Lbl><input value={newClName} onChange={e=>setNewClName(e.target.value)} style={{width:"100%",boxSizing:"border-box"}}/></div><div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={()=>setAddingCl(false)}>キャンセル</button><button onClick={()=>{if(newClName.trim()){const nc={id:Date.now(),name:newClName.trim(),paymentMethod:"銀行振込",paymentDelay:false,color:CLIENT_PALETTE[Math.floor(Math.random()*CLIENT_PALETTE.length)],note:""};onAddClient(nc);setForm(f=>({...f,clientId:nc.id}));setAddingCl(false);}}} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"6px 18px",fontWeight:700,cursor:"pointer"}}>追加</button></div></div></Modal>}
+  </div>);
 }
 
-// ── HOME ───────────────────────────────────────────────────
 function HomeTab({jobs,clients,settings,expenses}){
-  const[compact,setCompact]=useState(false);
-  const tm=thisMonth(),ty=thisYear();
   const gc=id=>clients.find(c=>c.id===id);
-  const paid=jobs.filter(j=>["納品済","入金済"].includes(j.status));
-  const incM=paid.filter(j=>j.receiveDate?.startsWith(tm)).reduce((s,j)=>s+totalPrice(j),0);
-  const incY=paid.filter(j=>j.receiveDate?.startsWith(ty)).reduce((s,j)=>s+totalPrice(j),0);
-  const jobsM=jobs.filter(j=>j.receiveDate?.startsWith(tm)).length;
+  const ty=thisYear(),tm=thisMonth(),now=new Date();
+  const remMonths=12-now.getMonth();
+  const yearJobs=jobs.filter(j=>j.receiveDate?.startsWith(ty));
+  const paidY=yearJobs.filter(j=>j.status==="入金済").reduce((s,j)=>s+totalPrice(j),0);
+  const unpaidY=yearJobs.filter(j=>["受付","制作中","修正中","納品済"].includes(j.status)).reduce((s,j)=>s+totalPrice(j),0);
+  const monthJobs=jobs.filter(j=>j.receiveDate?.startsWith(tm));
+  const incM=monthJobs.filter(j=>["納品済","入金済"].includes(j.status)).reduce((s,j)=>s+totalPrice(j),0);
   const inProg=jobs.filter(j=>["受付","制作中","修正中"].includes(j.status));
+  const jobsM=monthJobs.length;
+  const monthlyExp=expenses.filter(e=>e.type==="monthly"&&e.level<=2).reduce((s,e)=>s+Number(e.amount),0);
+  const monthsPassed=now.getMonth()+1;
+  const avgMonthlyInc=monthsPassed>0?(paidY+unpaidY)/monthsPassed:0;
+  const yearEndEst=avgMonthlyInc*12;
+  const yearExpEst=monthlyExp*12;
   const urgent=inProg.filter(j=>daysUntil(j.deadline)<=3);
   const hrAlerts=inProg.filter(j=>j.actualHours>0&&hrRate(totalPrice(j),j.actualHours)<settings.alertHourlyRate);
-  const reqExp=expenses.filter(e=>e.level===1&&e.type==="monthly").reduce((s,e)=>s+Number(e.amount),0);
-  return(
-    <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem"}}>
-        <h2 style={{fontSize:18,fontWeight:700,color:"#1E293B"}}>ダッシュボード</h2>
-        <button onClick={()=>setCompact(c=>!c)} style={{fontSize:12,padding:"4px 12px"}}>{compact?"詳細表示":"コンパクト"}</button>
-      </div>
-      {urgent.length>0&&<div style={{background:"#FFF1F2",border:"1.5px solid #FECDD3",borderRadius:10,padding:"10px 14px",marginBottom:10,fontSize:13,color:"#BE123C",display:"flex",gap:8}}>
-        <i className="ti ti-bell" style={{fontSize:16,flexShrink:0,marginTop:1}}/><div><strong>締め切り間近：</strong>{urgent.map(j=>`${gc(j.clientId)?.name}「${j.title||j.type||"案件"}」あと${daysUntil(j.deadline)}日`).join("　/　")}</div>
-      </div>}
-      {hrAlerts.length>0&&<div style={{background:"#FFF7ED",border:"1.5px solid #FED7AA",borderRadius:10,padding:"10px 14px",marginBottom:10,fontSize:13,color:"#C2410C",display:"flex",gap:8}}>
-        <i className="ti ti-alert-triangle" style={{fontSize:16,flexShrink:0,marginTop:1}}/><div><strong>時給アラート：</strong>{hrAlerts.map(j=>`${gc(j.clientId)?.name}「${j.title||"案件"}」現在${yen(hrRate(totalPrice(j),j.actualHours))}/h`).join(" / ")}　目標{yen(settings.alertHourlyRate)}/h 未満</div>
-      </div>}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:"1rem"}}>
-        <MetricCard label="今月収益" value={yen(incM)} sub={`年間 ${yen(incY)}`}/>
-        <MetricCard label="今月案件数" value={`${jobsM}件`} sub={`上限まで${settings.monthlyJobLimit-jobsM}件`} warn={jobsM>=settings.monthlyJobLimit}/>
-        <MetricCard label="進行中" value={`${inProg.length}件`}/>
-        <MetricCard label="手取り試算" value={yen(incM-reqExp)} sub="収益－必要経費"/>
-      </div>
-      {!compact&&<div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:"1rem"}}>
-        <ProgressBar value={incY} max={settings.incomeLimit} label={`年収益上限 (${settings.incomeLimitType}) ${yen(settings.incomeLimit)}`}/>
-        <ProgressBar value={jobsM} max={settings.monthlyJobLimit} label={`月間案件数 ${jobsM}/${settings.monthlyJobLimit}件`} color="#60A5FA"/>
-      </div>}
-      <Card>
-        <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:"#1E293B"}}>進行中の案件</div>
-        {inProg.length===0?<div style={{color:"#64748B",fontSize:13}}>進行中の案件はありません</div>:
-        <div style={{display:"flex",flexDirection:"column",gap:7}}>
-          {inProg.map(j=>{
-            const cl=gc(j.clientId),tp=totalPrice(j);
-            const rate=j.actualHours>0?hrRate(tp,j.actualHours):null;
-            const rw=rate!==null&&rate<settings.alertHourlyRate;
-            return(<div key={j.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"var(--clr-bg)",borderRadius:8,border:`1.5px solid ${rw?"#FED7AA":"#E2E8F0"}`,flexWrap:"wrap"}}>
-              <div style={{width:8,height:8,borderRadius:"50%",background:cl?.color||"#ccc",flexShrink:0}}/>
-              <Badge status={j.status}/>
-              <div style={{flex:1,minWidth:80}}>
-                <div style={{fontSize:13,fontWeight:600}}>{j.title||"（案件名なし）"}</div>
-                {!compact&&<div style={{fontSize:11,color:"#64748B"}}>{cl?.name}</div>}
-              </div>
-              <span style={{fontSize:12,fontWeight:600}}>{yen(tp)}</span>
-              {rate!==null&&<span style={{fontSize:11,color:rw?"#C2410C":"#64748B",background:rw?"#FFF7ED":"transparent",padding:rw?"1px 6px":0,borderRadius:4}}>{yen(rate)}/h</span>}
-              <span style={{fontSize:12,color:daysUntil(j.deadline)<=3?"#EF4444":"#64748B"}}>締切{j.deadline}({daysUntil(j.deadline)}日後)</span>
-            </div>);
-          })}
-        </div>}
-      </Card>
+  const actions=[];
+  jobs.filter(j=>!j.contracted&&["受付","制作中"].includes(j.status)).forEach(j=>actions.push({type:"warn",icon:"ti-writing",text:`「${j.title||"案件"}」の受注書がまだです`}));
+  jobs.filter(j=>j.status==="納品済"&&!j.invoiced).forEach(j=>actions.push({type:"danger",icon:"ti-file-invoice",text:`「${j.title||"案件"}」の請求書を発行してください`}));
+  jobs.filter(j=>j.invoiced&&j.status==="納品済").forEach(j=>actions.push({type:"info",icon:"ti-coin",text:`「${j.title||"案件"}」の入金を確認してください`}));
+  urgent.forEach(j=>actions.push({type:"danger",icon:"ti-bell",text:`「${j.title||"案件"}」締切まであと${daysUntil(j.deadline)}日！`}));
+  hrAlerts.forEach(j=>actions.push({type:"warn",icon:"ti-alert-triangle",text:`「${j.title||"案件"}」の時給が目標を下回っています（${yen(hrRate(totalPrice(j),j.actualHours))}/h）`}));
+  const aC={danger:"#FFF1F2",warn:"#FFF7ED",info:"#EFF6FF"};
+  const aB={danger:"#FECDD3",warn:"#FED7AA",info:"#BFDBFE"};
+  const aT={danger:"#BE123C",warn:"#C2410C",info:"#1D4ED8"};
+  return(<div>
+    <h2 style={{fontSize:18,fontWeight:700,color:"#1E293B",marginBottom:"1rem"}}>ダッシュボード</h2>
+    {actions.length>0&&<Card style={{marginBottom:"1rem"}}><div style={{fontSize:13,fontWeight:700,color:"#1E293B",marginBottom:8,display:"flex",alignItems:"center",gap:6}}><i className="ti ti-player-play" style={{color:"var(--clr-primary)"}}/>次にやること</div><div style={{display:"flex",flexDirection:"column",gap:6}}>{actions.slice(0,5).map((a,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:aC[a.type],border:`1px solid ${aB[a.type]}`,borderRadius:8}}><i className={`ti ${a.icon}`} style={{fontSize:15,color:aT[a.type],flexShrink:0}}/><span style={{fontSize:12,color:aT[a.type],flex:1}}>{a.text}</span></div>))}</div></Card>}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:"1rem"}}>
+      <MetricCard label="今月受注数" value={`${jobsM}件`} sub={`上限まで${settings.monthlyJobLimit-jobsM}件`} warn={jobsM>=settings.monthlyJobLimit}/>
+      <MetricCard label="今月収益" value={yen(incM)}/>
+      <MetricCard label="今月経費" value={yen(monthlyExp)} sub="毎月固定（Lv1-2）"/>
+      <MetricCard label="今月手取り" value={yen(incM-monthlyExp)} color={incM-monthlyExp<0?"#EF4444":undefined}/>
     </div>
-  );
+    <Card style={{marginBottom:"1rem"}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#1E293B",marginBottom:12,display:"flex",alignItems:"center",gap:6}}><i className="ti ti-calendar-stats" style={{color:"var(--clr-primary)"}}/>年間収益の見通し（{ty}年）</div>
+      <DualProgressBar paidAmount={paidY} unpaidAmount={unpaidY} max={settings.incomeLimit} label={`収益上限 (${settings.incomeLimitType}) ${yen(settings.incomeLimit)}`}/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:12}}>
+        <div style={{background:"var(--clr-bg)",borderRadius:8,padding:"8px 12px",border:"1px solid #E2E8F0"}}><div style={{fontSize:11,color:"#64748B",marginBottom:3}}>年末経費推定</div><div style={{fontSize:15,fontWeight:700,color:"#EF4444"}}>{yen(yearExpEst)}</div><div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>月{yen(monthlyExp)}×12ヶ月</div></div>
+        <div style={{background:"var(--clr-bg)",borderRadius:8,padding:"8px 12px",border:"1px solid #E2E8F0"}}><div style={{fontSize:11,color:"#64748B",marginBottom:3}}>このペースでの年末収益予測</div><div style={{fontSize:15,fontWeight:700,color:yearEndEst>settings.incomeLimit?"#EF4444":"#10B981"}}>{yen(yearEndEst)}</div><div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>月平均{yen(Math.round(avgMonthlyInc))}×12</div></div>
+      </div>
+      {yearEndEst>settings.incomeLimit&&<div style={{marginTop:10,background:"#FFF1F2",border:"1px solid #FECDD3",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#BE123C"}}>⚠ このペースだと年収上限（{yen(settings.incomeLimit)}）を超える可能性があります。残り{remMonths}ヶ月の受注可能目安: {yen(Math.max(0,settings.incomeLimit-paidY-unpaidY))}</div>}
+    </Card>
+    <Card><div style={{fontSize:13,fontWeight:700,color:"#1E293B",marginBottom:10,display:"flex",alignItems:"center",gap:6}}><i className="ti ti-loader" style={{color:"var(--clr-primary)"}}/>進行中の案件</div>
+    {inProg.length===0?<div style={{color:"#64748B",fontSize:13}}>進行中の案件はありません</div>:<div style={{display:"flex",flexDirection:"column",gap:6}}>{inProg.map(j=>{const cl=gc(j.clientId),tp=totalPrice(j),rate=j.actualHours>0?hrRate(tp,j.actualHours):null,rw=rate!==null&&rate<settings.alertHourlyRate,ckDone=(j.checklist||[]).filter(c=>c.done).length,ckTotal=(j.checklist||[]).length;return(<div key={j.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"var(--clr-bg)",borderRadius:8,border:`1.5px solid ${rw?"#FED7AA":"#E2E8F0"}`,flexWrap:"wrap"}}><div style={{width:8,height:8,borderRadius:"50%",background:cl?.color||"#ccc",flexShrink:0}}/><Badge status={j.status}/><div style={{flex:1,minWidth:80}}><div style={{fontSize:13,fontWeight:600}}>{j.title||"（案件名なし）"}</div><div style={{fontSize:11,color:"#64748B"}}>{cl?.name} · ✓{ckDone}/{ckTotal}</div></div><span style={{fontSize:12,fontWeight:600}}>{yen(tp)}</span>{rate!==null&&<span style={{fontSize:11,color:rw?"#C2410C":"#64748B"}}>{yen(rate)}/h</span>}<span style={{fontSize:12,color:daysUntil(j.deadline)<=3?"#EF4444":"#64748B"}}>締切{j.deadline}({daysUntil(j.deadline)}日後)</span></div>);})}</div>}
+    </Card>
+  </div>);
 }
 
-// ── JOBS TAB ───────────────────────────────────────────────
 function JobsTab({jobs,setJobs,clients,setClients,settings}){
-  const[modal,setModal]=useState(false);const[editJob,setEditJob]=useState(null);
-  const[filterS,setFilterS]=useState("すべて");const[compact,setCompact]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
+  const[modal,setModal]=useState(false);const[editJob,setEditJob]=useState(null);const[filterS,setFilterS]=useState("すべて");const[compact,setCompact]=useState(false);const[confirmDel,setConfirmDel]=useState(null);
   const gc=id=>clients.find(c=>c.id===id);
   function saveJob(job){setJobs(prev=>{const i=prev.findIndex(j=>j.id===job.id);if(i>=0){const n=[...prev];n[i]=job;return n;}return[...prev,{...job,id:Date.now()}];});}
   const filtered=filterS==="すべて"?jobs:jobs.filter(j=>j.status===filterS);
-  return(
-    <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem",flexWrap:"wrap",gap:8}}>
-        <h2 style={{fontSize:18,fontWeight:700,color:"#1E293B"}}>案件管理</h2>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>setCompact(c=>!c)} style={{fontSize:12,padding:"4px 10px"}}>{compact?"詳細":"コンパクト"}</button>
-          <button onClick={()=>{setEditJob(null);setModal(true);}} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"6px 16px",fontWeight:700,cursor:"pointer",fontSize:13}}><i className="ti ti-plus"/> 新規案件</button>
-        </div>
-      </div>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:"1rem"}}>
-        {["すべて",...STATUS_LIST].map(s=><button key={s} onClick={()=>setFilterS(s)} style={{fontSize:12,padding:"4px 12px",fontWeight:filterS===s?700:400,background:filterS===s?"var(--clr-primary)":"transparent",color:filterS===s?"#fff":"#64748B",border:`1.5px solid ${filterS===s?"var(--clr-primary)":"#E2E8F0"}`,borderRadius:20}}>{s}</button>)}
-      </div>
-      <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {filtered.length===0&&<div style={{color:"#64748B",fontSize:13,padding:"1rem"}}>案件がありません</div>}
-        {filtered.map(j=>{
-          const cl=gc(j.clientId),tp=totalPrice(j);
-          const rate=j.actualHours>0?hrRate(tp,j.actualHours):j.estimatedHours>0?hrRate(tp,j.estimatedHours):null;
-          const rw=rate!==null&&rate<settings.alertHourlyRate;
-          const ck=(j.checklist||[]).filter(c=>c.done).length;
-          const ckTotal=(j.checklist||[]).length;
-          const types=[...new Set((j.breakdown||[]).map(r=>r.type))].join("・");
-          return(
-            <Card key={j.id} style={{padding:"0.875rem 1rem"}} accent={rw?"#FED7AA":undefined}>
-              <div style={{display:"flex",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}>
-                <div style={{width:10,height:10,borderRadius:"50%",background:cl?.color||"#ccc",flexShrink:0,marginTop:4}}/>
-                <Badge status={j.status}/>
-                <div style={{flex:1,minWidth:100}}>
-                  <div style={{fontWeight:700,fontSize:14,color:"#1E293B"}}>{j.title||"（案件名なし）"}</div>
-                  <div style={{fontSize:12,color:"#64748B",marginTop:2}}>{cl?.name}{types?` · ${types}`:""}</div>
-                </div>
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontWeight:700,fontSize:14}}>{yen(tp)}</div>
-                  {rate!==null&&<div style={{fontSize:11,color:rw?"#C2410C":"#64748B"}}>{yen(rate)}/h{rw?" ⚠":""}</div>}
-                </div>
-                {!compact&&<div style={{fontSize:12,color:"#64748B",textAlign:"right"}}>
-                  <div>締切:{j.deadline}</div>
-                  <div style={{marginTop:2}}>✓ {ck}/{ckTotal}</div>
-                </div>}
-                <div style={{display:"flex",gap:4}}>
-                  <button onClick={()=>{setEditJob(j);setModal(true);}} style={{padding:"3px 8px",fontSize:13,borderRadius:6}}><i className="ti ti-edit"/></button>
-                  <button onClick={()=>setConfirmDel(j.id)} style={{padding:"3px 8px",fontSize:13,borderRadius:6,color:"#fff",background:"#EF4444",border:"1px solid #EF4444"}}><i className="ti ti-trash"/></button>
-                </div>
-              </div>
-              {/* 内訳サマリ */}
-              {!compact&&(j.breakdown||[]).length>0&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #E2E8F0",display:"flex",gap:8,flexWrap:"wrap"}}>
-                {j.breakdown.map(r=><span key={r.id} style={{fontSize:11,background:"var(--clr-bg)",border:"1px solid #E2E8F0",borderRadius:6,padding:"2px 8px",color:"#64748B"}}>{r.type} ×{r.qty} {yen(r.qty*r.unitPrice)}</span>)}
-                {(j.addOns||[]).length>0&&j.addOns.map(a=><span key={a.id} style={{fontSize:11,background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:6,padding:"2px 8px",color:"#C2410C"}}>追加: {yen(a.amount)}</span>)}
-              </div>}
-              {!compact&&j.notes&&<div style={{fontSize:12,color:"#64748B",marginTop:6}}>{j.notes}</div>}
-            </Card>
-          );
-        })}
-      </div>
-      {modal&&<Modal title={editJob?"案件を編集":"新規案件登録"} onClose={()=>setModal(false)} wide><JobModal job={editJob} clients={clients} settings={settings} onSave={saveJob} onAddClient={nc=>setClients(p=>[...p,nc])} onClose={()=>setModal(false)}/></Modal>}
-      {confirmDel&&<Confirm message="この案件を削除しますか？この操作は元に戻せません。" onConfirm={()=>{setJobs(p=>p.filter(j=>j.id!==confirmDel));setConfirmDel(null);}} onCancel={()=>setConfirmDel(null)}/>}
+  return(<div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem",flexWrap:"wrap",gap:8}}><h2 style={{fontSize:18,fontWeight:700,color:"#1E293B"}}>案件管理</h2><div style={{display:"flex",gap:8}}><button onClick={()=>setCompact(c=>!c)} style={{fontSize:12,padding:"4px 10px"}}>{compact?"詳細":"コンパクト"}</button><button onClick={()=>{setEditJob(null);setModal(true);}} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"6px 16px",fontWeight:700,cursor:"pointer",fontSize:13}}><i className="ti ti-plus"/> 新規案件</button></div></div>
+    <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:"1rem"}}>{["すべて",...STATUS_LIST].map(s=><button key={s} onClick={()=>setFilterS(s)} style={{fontSize:12,padding:"4px 12px",fontWeight:filterS===s?700:400,background:filterS===s?"var(--clr-primary)":"transparent",color:filterS===s?"#fff":"#64748B",border:`1.5px solid ${filterS===s?"var(--clr-primary)":"#E2E8F0"}`,borderRadius:20}}>{s}</button>)}</div>
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {filtered.length===0&&<div style={{color:"#64748B",fontSize:13,padding:"1rem"}}>案件がありません</div>}
+      {filtered.map(j=>{const cl=gc(j.clientId),tp=totalPrice(j),rate=j.actualHours>0?hrRate(tp,j.actualHours):j.estimatedHours>0?hrRate(tp,j.estimatedHours):null,rw=rate!==null&&rate<settings.alertHourlyRate,ck=(j.checklist||[]).filter(c=>c.done).length,ckT=(j.checklist||[]).length,types=[...new Set((j.breakdown||[]).map(r=>r.type))].join("・");return(<Card key={j.id} style={{padding:"0.875rem 1rem"}} accent={rw?"#FED7AA":undefined}><div style={{display:"flex",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}><div style={{width:10,height:10,borderRadius:"50%",background:cl?.color||"#ccc",flexShrink:0,marginTop:4}}/><Badge status={j.status}/><div style={{flex:1,minWidth:100}}><div style={{fontWeight:700,fontSize:14,color:"#1E293B"}}>{j.title||"（案件名なし）"}</div><div style={{fontSize:12,color:"#64748B",marginTop:2}}>{cl?.name}{types?` · ${types}`:""}</div></div><div style={{textAlign:"right"}}><div style={{fontWeight:700,fontSize:14}}>{yen(tp)}</div>{rate!==null&&<div style={{fontSize:11,color:rw?"#C2410C":"#64748B"}}>{yen(rate)}/h{rw?" ⚠":""}</div>}</div>{!compact&&<div style={{fontSize:12,color:"#64748B",textAlign:"right"}}><div>締切:{j.deadline}</div><div style={{marginTop:2}}>✓ {ck}/{ckT}</div></div>}<div style={{display:"flex",gap:4}}><button onClick={()=>{setEditJob(j);setModal(true);}} style={{padding:"3px 8px",fontSize:13,borderRadius:6}}><i className="ti ti-edit"/></button><button onClick={()=>setConfirmDel(j.id)} style={{padding:"3px 8px",fontSize:13,borderRadius:6,color:"#fff",background:"#EF4444",border:"1px solid #EF4444"}}><i className="ti ti-trash"/></button></div></div>{!compact&&(j.breakdown||[]).length>0&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #E2E8F0",display:"flex",gap:6,flexWrap:"wrap"}}>{j.breakdown.map(r=><span key={r.id} style={{fontSize:11,background:"var(--clr-bg)",border:"1px solid #E2E8F0",borderRadius:6,padding:"2px 8px",color:"#64748B"}}>{r.type} ×{r.qty} {yen(r.qty*r.unitPrice)}</span>)}{(j.addOns||[]).length>0&&j.addOns.map(a=><span key={a.id} style={{fontSize:11,background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:6,padding:"2px 8px",color:"#C2410C"}}>追加: {yen(a.amount)}</span>)}</div>}{!compact&&j.notes&&<div style={{fontSize:12,color:"#64748B",marginTop:6}}>{j.notes}</div>}</Card>);})}
     </div>
-  );
+    {modal&&<Modal title={editJob?"案件を編集":"新規案件登録"} onClose={()=>setModal(false)} wide><JobModal job={editJob} clients={clients} settings={settings} onSave={saveJob} onAddClient={nc=>setClients(p=>[...p,nc])} onClose={()=>setModal(false)}/></Modal>}
+    {confirmDel&&<Confirm message="この案件を削除しますか？" onConfirm={()=>{setJobs(p=>p.filter(j=>j.id!==confirmDel));setConfirmDel(null);}} onCancel={()=>setConfirmDel(null)}/>}
+  </div>);
 }
 
-// ── CALENDAR ───────────────────────────────────────────────
 function CalendarTab({jobs,clients,settings}){
-  const[yr,setYr]=useState(new Date().getFullYear());const[mo,setMo]=useState(new Date().getMonth());
-  const[vt,setVt]=useState(settings.calendarView);const[dt,setDt]=useState(settings.calendarDateType);
+  const[yr,setYr]=useState(new Date().getFullYear());const[mo,setMo]=useState(new Date().getMonth());const[vt,setVt]=useState(settings.calendarView);const[dt,setDt]=useState(settings.calendarDateType);
   const gc=id=>clients.find(c=>c.id===id);
   const first=new Date(yr,mo,1).getDay(),dim=new Date(yr,mo+1,0).getDate();
   const cells=[...Array(first).fill(null),...Array.from({length:dim},(_,i)=>i+1)];
   const ds=d=>`${yr}-${String(mo+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
   const todStr=toDay();
   function inRange(j,d){const date=ds(d),start=j.startDate||j.receiveDate,end=dt==="targetDate"?(j.targetDate||j.deadline):j.deadline;return date>=start&&date<=end;}
-  return(
-    <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem",flexWrap:"wrap",gap:8}}>
-        <h2 style={{fontSize:18,fontWeight:700,color:"#1E293B"}}>カレンダー</h2>
-        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-          <select value={vt} onChange={e=>setVt(e.target.value)} style={{fontSize:12,padding:"5px 8px",width:"auto"}}><option value="bar">バー表示</option><option value="dot">点のみ</option></select>
-          <select value={dt} onChange={e=>setDt(e.target.value)} style={{fontSize:12,padding:"5px 8px",width:"auto"}}><option value="deadline">締め切り基準</option><option value="targetDate">目標納品日基準</option><option value="start">取り掛かり基準</option></select>
-          <div style={{display:"flex",alignItems:"center",gap:4}}>
-            <button onClick={()=>mo===0?(setYr(y=>y-1),setMo(11)):setMo(m=>m-1)} style={{padding:"4px 10px"}}>‹</button>
-            <span style={{fontSize:13,fontWeight:700,minWidth:80,textAlign:"center"}}>{yr}年{mo+1}月</span>
-            <button onClick={()=>mo===11?(setYr(y=>y+1),setMo(0)):setMo(m=>m+1)} style={{padding:"4px 10px"}}>›</button>
-          </div>
-        </div>
-      </div>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>{clients.map(c=><div key={c.id} style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"#64748B"}}><div style={{width:9,height:9,borderRadius:"50%",background:c.color}}/>{c.name}</div>)}</div>
-      <Card style={{padding:"0.75rem"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,marginBottom:4}}>{["日","月","火","水","木","金","土"].map((d,i)=><div key={d} style={{textAlign:"center",fontSize:11,fontWeight:700,color:i===0?"#EF4444":i===6?"#60A5FA":"#64748B",padding:"4px 0"}}>{d}</div>)}</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
-          {cells.map((d,i)=>{
-            if(!d)return<div key={i}/>;
-            const dateStr=ds(d),isToday=dateStr===todStr;
-            const rj=vt==="bar"?jobs.filter(j=>inRange(j,d)):[];
-            const dj=vt==="dot"?jobs.filter(j=>{if(dt==="deadline")return j.deadline===dateStr;if(dt==="targetDate")return j.targetDate===dateStr;return j.startDate===dateStr;}):[];
-            const isSun=(first+d-1)%7===0,isSat=(first+d-1)%7===6;
-            return(<div key={i} style={{minHeight:60,padding:"3px 4px",borderRadius:6,background:isToday?"rgba(99,102,241,0.1)":"transparent",border:`1px solid ${isToday?"var(--clr-primary)":"#E2E8F0"}`}}>
-              <div style={{fontSize:12,fontWeight:isToday?700:400,color:isToday?"var(--clr-primary)":isSun?"#EF4444":isSat?"#60A5FA":"#1E293B",marginBottom:2}}>{d}</div>
-              {vt==="dot"?<div style={{display:"flex",flexWrap:"wrap",gap:2}}>{dj.map(j=><div key={j.id} title={`${gc(j.clientId)?.name} ${j.title||""}`} style={{width:7,height:7,borderRadius:"50%",background:gc(j.clientId)?.color||"#888"}}/>)}</div>
-              :rj.map(j=><div key={j.id} title={`${gc(j.clientId)?.name} ${j.title||""}`} style={{fontSize:10,background:gc(j.clientId)?.color||"#888",color:"#fff",borderRadius:3,padding:"1px 3px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                {j.title||gc(j.clientId)?.name||""}
-              </div>)}
-            </div>);
-          })}
-        </div>
-      </Card>
-    </div>
-  );
+  return(<div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem",flexWrap:"wrap",gap:8}}><h2 style={{fontSize:18,fontWeight:700,color:"#1E293B"}}>カレンダー</h2><div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}><select value={vt} onChange={e=>setVt(e.target.value)} style={{fontSize:12,padding:"5px 8px",width:"auto"}}><option value="bar">バー表示</option><option value="dot">点のみ</option></select><select value={dt} onChange={e=>setDt(e.target.value)} style={{fontSize:12,padding:"5px 8px",width:"auto"}}><option value="deadline">締め切り基準</option><option value="targetDate">目標納品日基準</option><option value="start">取り掛かり基準</option></select><div style={{display:"flex",alignItems:"center",gap:4}}><button onClick={()=>mo===0?(setYr(y=>y-1),setMo(11)):setMo(m=>m-1)} style={{padding:"4px 10px"}}>‹</button><span style={{fontSize:13,fontWeight:700,minWidth:80,textAlign:"center"}}>{yr}年{mo+1}月</span><button onClick={()=>mo===11?(setYr(y=>y+1),setMo(0)):setMo(m=>m+1)} style={{padding:"4px 10px"}}>›</button></div></div></div>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>{clients.map(c=><div key={c.id} style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"#64748B"}}><div style={{width:9,height:9,borderRadius:"50%",background:c.color}}/>{c.name}</div>)}</div>
+    <Card style={{padding:"0.75rem"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,marginBottom:4}}>{["日","月","火","水","木","金","土"].map((d,i)=><div key={d} style={{textAlign:"center",fontSize:11,fontWeight:700,color:i===0?"#EF4444":i===6?"#60A5FA":"#64748B",padding:"4px 0"}}>{d}</div>)}</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>{cells.map((d,i)=>{if(!d)return<div key={i}/>;const dateStr=ds(d),isToday=dateStr===todStr,rj=vt==="bar"?jobs.filter(j=>inRange(j,d)):[],dj=vt==="dot"?jobs.filter(j=>{if(dt==="deadline")return j.deadline===dateStr;if(dt==="targetDate")return j.targetDate===dateStr;return j.startDate===dateStr;}):[];const isSun=(first+d-1)%7===0,isSat=(first+d-1)%7===6;return(<div key={i} style={{minHeight:60,padding:"3px 4px",borderRadius:6,background:isToday?"rgba(99,102,241,0.1)":"transparent",border:`1px solid ${isToday?"var(--clr-primary)":"#E2E8F0"}`}}><div style={{fontSize:12,fontWeight:isToday?700:400,color:isToday?"var(--clr-primary)":isSun?"#EF4444":isSat?"#60A5FA":"#1E293B",marginBottom:2}}>{d}</div>{vt==="dot"?<div style={{display:"flex",flexWrap:"wrap",gap:2}}>{dj.map(j=><div key={j.id} title={`${gc(j.clientId)?.name} ${j.title||""}`} style={{width:7,height:7,borderRadius:"50%",background:gc(j.clientId)?.color||"#888"}}/>)}</div>:rj.map(j=><div key={j.id} title={`${gc(j.clientId)?.name} ${j.title||""}`} style={{fontSize:10,background:gc(j.clientId)?.color||"#888",color:"#fff",borderRadius:3,padding:"1px 3px",marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{j.title||gc(j.clientId)?.name||""}</div>)}</div>);})}</div>
+    </Card>
+  </div>);
 }
 
-// ── FINANCE ────────────────────────────────────────────────
 function FinanceTab({jobs,expenses,setExpenses,settings,setSettings}){
-  const[expLv,setExpLv]=useState([1,2,3]);const[showAdd,setShowAdd]=useState(false);
-  const[newExp,setNewExp]=useState({name:"",amount:0,type:"monthly",level:1});
-  const[custom,setCustom]=useState(settings.incomeLimit);const[confirmDel,setConfirmDel]=useState(null);
+  const[expLv,setExpLv]=useState([1,2,3]);const[showAdd,setShowAdd]=useState(false);const[newExp,setNewExp]=useState({name:"",amount:0,type:"monthly",level:1});const[custom,setCustom]=useState(settings.incomeLimit);const[confirmDel,setConfirmDel]=useState(null);const[editExp,setEditExp]=useState(null);
   const tm=thisMonth(),ty=thisYear();
   const paid=jobs.filter(j=>["納品済","入金済"].includes(j.status));
   const incM=paid.filter(j=>j.receiveDate?.startsWith(tm)).reduce((s,j)=>s+totalPrice(j),0);
   const incY=paid.filter(j=>j.receiveDate?.startsWith(ty)).reduce((s,j)=>s+totalPrice(j),0);
+  const paidY=jobs.filter(j=>j.status==="入金済"&&j.receiveDate?.startsWith(ty)).reduce((s,j)=>s+totalPrice(j),0);
+  const unpaidY=jobs.filter(j=>["受付","制作中","修正中","納品済"].includes(j.status)&&j.receiveDate?.startsWith(ty)).reduce((s,j)=>s+totalPrice(j),0);
   const filtE=expenses.filter(e=>expLv.includes(e.level));
   const mExp=filtE.filter(e=>e.type==="monthly").reduce((s,e)=>s+Number(e.amount),0);
   const oExp=filtE.filter(e=>e.type==="one-time").reduce((s,e)=>s+Number(e.amount),0);
   function setWall(label){const w=INCOME_WALLS.find(x=>x.label===label);if(w?.value)setSettings(s=>({...s,incomeLimitType:label,incomeLimit:w.value}));else setSettings(s=>({...s,incomeLimitType:"自由設定"}));}
-  return(
-    <div>
-      <h2 style={{fontSize:18,fontWeight:700,color:"#1E293B",marginBottom:"1rem"}}>財務管理</h2>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:"1rem"}}>
-        <MetricCard label="今月収益" value={yen(incM)}/><MetricCard label="今年収益" value={yen(incY)}/>
-        <MetricCard label="今月経費" value={yen(mExp+oExp)}/><MetricCard label="手取り試算" value={yen(incM-mExp-oExp)} warn={incM-mExp-oExp<0}/>
-      </div>
-      <Card style={{marginBottom:"1rem"}}>
-        <div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:10,display:"flex",alignItems:"center",gap:4}}><Tooltip text={TOOLTIPS.incomeLimit}>収益上限設定</Tooltip></div>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>{INCOME_WALLS.map(w=><button key={w.label} onClick={()=>setWall(w.label)} style={{fontSize:12,padding:"4px 12px",background:settings.incomeLimitType===w.label?"var(--clr-primary)":"transparent",color:settings.incomeLimitType===w.label?"#fff":"#64748B",border:`1.5px solid ${settings.incomeLimitType===w.label?"var(--clr-primary)":"#E2E8F0"}`,borderRadius:20}}>{w.label}{w.value?` (${yen(w.value)})`:""}</button>)}</div>
-        {settings.incomeLimitType==="自由設定"&&<div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center"}}><input type="number" value={custom} onChange={e=>setCustom(Number(e.target.value))} style={{width:150}}/><button onClick={()=>setSettings(s=>({...s,incomeLimit:custom}))} style={{padding:"5px 14px"}}>適用</button></div>}
-        <ProgressBar value={incY} max={settings.incomeLimit} label={`年収益 ${yen(incY)} / 上限 ${yen(settings.incomeLimit)}`}/>
-      </Card>
-      <Card>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
-          <div style={{fontSize:14,fontWeight:700,color:"#1E293B"}}>経費管理</div>
-          <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-            {EXPENSE_LEVELS.map(l=><button key={l.id} onClick={()=>setExpLv(p=>p.includes(l.id)?p.filter(x=>x!==l.id):[...p,l.id])} style={{fontSize:11,padding:"2px 8px",background:expLv.includes(l.id)?l.color:"transparent",color:expLv.includes(l.id)?"#fff":"#64748B",border:`1.5px solid ${l.color}`,borderRadius:20}}>Lv{l.id}</button>)}
-            <button onClick={()=>setShowAdd(true)} style={{fontSize:12,padding:"3px 10px"}}>+ 追加</button>
-          </div>
-        </div>
-        <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {expenses.map(e=>(
-            <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:expLv.includes(e.level)?"var(--clr-bg)":"transparent",borderRadius:8,border:"1px solid #E2E8F0",opacity:expLv.includes(e.level)?1:0.45}}>
-              <div style={{width:8,height:8,borderRadius:"50%",background:EXPENSE_LEVELS[e.level-1]?.color,flexShrink:0}}/>
-              <span style={{flex:1,fontSize:13,color:"#1E293B"}}>{e.name}</span>
-              <span style={{fontSize:11,color:"#64748B",background:"#F1F5F9",padding:"1px 6px",borderRadius:10}}>{e.type==="monthly"?"毎月":"単発"}</span>
-              <span style={{fontSize:13,fontWeight:600}}>{yen(e.amount)}</span>
-              <button onClick={()=>setConfirmDel(e.id)} style={{padding:"3px 7px",fontSize:12,color:"#fff",background:"#EF4444",border:"1px solid #EF4444",borderRadius:6}}><i className="ti ti-trash"/></button>
-            </div>
-          ))}
-        </div>
-        <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #E2E8F0",display:"flex",justifyContent:"space-between",fontSize:13}}>
-          <span style={{color:"#64748B"}}>経費合計（表示中）</span><strong>{yen(mExp+oExp)}</strong>
-        </div>
-      </Card>
-      {showAdd&&<Modal title="経費追加" onClose={()=>setShowAdd(false)}>
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          <div><Lbl>名称</Lbl><input value={newExp.name} onChange={e=>setNewExp(f=>({...f,name:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
-          <div><Lbl>金額</Lbl><input type="number" value={newExp.amount} onChange={e=>setNewExp(f=>({...f,amount:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
-          <div><Lbl>種別</Lbl><select value={newExp.type} onChange={e=>setNewExp(f=>({...f,type:e.target.value}))} style={{width:"100%"}}><option value="monthly">毎月</option><option value="one-time">単発</option></select></div>
-          <div><Lbl>レベル</Lbl><select value={newExp.level} onChange={e=>setNewExp(f=>({...f,level:Number(e.target.value)}))} style={{width:"100%"}}>{EXPENSE_LEVELS.map(l=><option key={l.id} value={l.id}>Lv{l.id}: {l.label}</option>)}</select></div>
-          <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-            <button onClick={()=>setShowAdd(false)}>キャンセル</button>
-            <button onClick={()=>{setExpenses(p=>[...p,{...newExp,id:Date.now(),amount:Number(newExp.amount)}]);setNewExp({name:"",amount:0,type:"monthly",level:1});setShowAdd(false);}} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"6px 18px",fontWeight:700,cursor:"pointer"}}>追加</button>
-          </div>
-        </div>
-      </Modal>}
-      {confirmDel&&<Confirm message="この経費を削除しますか？" onConfirm={()=>{setExpenses(p=>p.filter(e=>e.id!==confirmDel));setConfirmDel(null);}} onCancel={()=>setConfirmDel(null)}/>}
-    </div>
-  );
+  return(<div>
+    <h2 style={{fontSize:18,fontWeight:700,color:"#1E293B",marginBottom:"1rem"}}>財務管理</h2>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:"1rem"}}><MetricCard label="今月収益" value={yen(incM)}/><MetricCard label="今年収益" value={yen(incY)}/><MetricCard label="今月経費" value={yen(mExp+oExp)}/><MetricCard label="今月手取り" value={yen(incM-mExp-oExp)} warn={incM-mExp-oExp<0}/></div>
+    <Card style={{marginBottom:"1rem"}}>
+      <div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:10,display:"flex",alignItems:"center",gap:4}}><Tooltip text={TOOLTIPS.incomeLimit}>収益上限設定</Tooltip></div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>{INCOME_WALLS.map(w=><button key={w.label} onClick={()=>setWall(w.label)} style={{fontSize:12,padding:"4px 12px",background:settings.incomeLimitType===w.label?"var(--clr-primary)":"transparent",color:settings.incomeLimitType===w.label?"#fff":"#64748B",border:`1.5px solid ${settings.incomeLimitType===w.label?"var(--clr-primary)":"#E2E8F0"}`,borderRadius:20}}>{w.label}{w.value?` (${yen(w.value)})`:""}</button>)}</div>
+      {settings.incomeLimitType==="自由設定"&&<div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center"}}><input type="number" value={custom} onChange={e=>setCustom(Number(e.target.value))} style={{width:150}}/><button onClick={()=>setSettings(s=>({...s,incomeLimit:custom}))} style={{padding:"5px 14px"}}>適用</button></div>}
+      <DualProgressBar paidAmount={paidY} unpaidAmount={unpaidY} max={settings.incomeLimit} label={`年収益上限 (${settings.incomeLimitType}) ${yen(settings.incomeLimit)}`}/>
+    </Card>
+    <Card>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}><div style={{fontSize:14,fontWeight:700,color:"#1E293B"}}>経費管理</div><div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>{EXPENSE_LEVELS.map(l=><button key={l.id} onClick={()=>setExpLv(p=>p.includes(l.id)?p.filter(x=>x!==l.id):[...p,l.id])} style={{fontSize:11,padding:"2px 8px",background:expLv.includes(l.id)?l.color:"transparent",color:expLv.includes(l.id)?"#fff":"#64748B",border:`1.5px solid ${l.color}`,borderRadius:20}}>Lv{l.id}</button>)}<button onClick={()=>setShowAdd(true)} style={{fontSize:12,padding:"3px 10px"}}>+ 追加</button></div></div>
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>{expenses.map(e=>(<div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:expLv.includes(e.level)?"var(--clr-bg)":"transparent",borderRadius:8,border:"1px solid #E2E8F0",opacity:expLv.includes(e.level)?1:0.45}}><div style={{width:8,height:8,borderRadius:"50%",background:EXPENSE_LEVELS[e.level-1]?.color,flexShrink:0}}/><span style={{flex:1,fontSize:13,color:"#1E293B"}}>{e.name}</span><span style={{fontSize:11,color:"#64748B",background:"#F1F5F9",padding:"1px 6px",borderRadius:10}}>{e.type==="monthly"?"毎月":"単発"}</span><span style={{fontSize:13,fontWeight:600}}>{yen(e.amount)}</span><button onClick={()=>setEditExp({...e})} style={{padding:"3px 6px",fontSize:12,borderRadius:6}}><i className="ti ti-edit"/></button><button onClick={()=>setConfirmDel(e.id)} style={{padding:"3px 7px",fontSize:12,color:"#fff",background:"#EF4444",border:"1px solid #EF4444",borderRadius:6}}><i className="ti ti-trash"/></button></div>))}</div>
+      <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #E2E8F0",display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:"#64748B"}}>経費合計（表示中）</span><strong>{yen(mExp+oExp)}</strong></div>
+    </Card>
+    {showAdd&&<Modal title="経費追加" onClose={()=>setShowAdd(false)}><div style={{display:"flex",flexDirection:"column",gap:10}}><div><Lbl>名称</Lbl><input value={newExp.name} onChange={e=>setNewExp(f=>({...f,name:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div><div><Lbl>金額</Lbl><input type="number" value={newExp.amount} onChange={e=>setNewExp(f=>({...f,amount:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div><div><Lbl>種別</Lbl><select value={newExp.type} onChange={e=>setNewExp(f=>({...f,type:e.target.value}))} style={{width:"100%"}}><option value="monthly">毎月</option><option value="one-time">単発</option></select></div><div><Lbl>レベル</Lbl><select value={newExp.level} onChange={e=>setNewExp(f=>({...f,level:Number(e.target.value)}))} style={{width:"100%"}}>{EXPENSE_LEVELS.map(l=><option key={l.id} value={l.id}>Lv{l.id}: {l.label}</option>)}</select></div><div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={()=>setShowAdd(false)}>キャンセル</button><button onClick={()=>{setExpenses(p=>[...p,{...newExp,id:Date.now(),amount:Number(newExp.amount)}]);setNewExp({name:"",amount:0,type:"monthly",level:1});setShowAdd(false);}} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"6px 18px",fontWeight:700,cursor:"pointer"}}>追加</button></div></div></Modal>}
+    {editExp&&<Modal title="経費を編集" onClose={()=>setEditExp(null)}><div style={{display:"flex",flexDirection:"column",gap:10}}><div><Lbl>名称</Lbl><input value={editExp.name} onChange={e=>setEditExp(f=>({...f,name:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div><div><Lbl>金額</Lbl><input type="number" value={editExp.amount} onChange={e=>setEditExp(f=>({...f,amount:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div><div><Lbl>種別</Lbl><select value={editExp.type} onChange={e=>setEditExp(f=>({...f,type:e.target.value}))} style={{width:"100%"}}><option value="monthly">毎月</option><option value="one-time">単発</option></select></div><div><Lbl>レベル</Lbl><select value={editExp.level} onChange={e=>setEditExp(f=>({...f,level:Number(e.target.value)}))} style={{width:"100%"}}>{EXPENSE_LEVELS.map(l=><option key={l.id} value={l.id}>Lv{l.id}: {l.label}</option>)}</select></div><div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={()=>setEditExp(null)}>キャンセル</button><button onClick={()=>{setExpenses(p=>p.map(e=>e.id===editExp.id?{...editExp,amount:Number(editExp.amount)}:e));setEditExp(null);}} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"6px 18px",fontWeight:700,cursor:"pointer"}}>保存</button></div></div></Modal>}
+    {confirmDel&&<Confirm message="この経費を削除しますか？" onConfirm={()=>{setExpenses(p=>p.filter(e=>e.id!==confirmDel));setConfirmDel(null);}} onCancel={()=>setConfirmDel(null)}/>}
+  </div>);
 }
 
-// ── ANALYSIS ───────────────────────────────────────────────
-function AnalysisTab({jobs,clients,settings}){
+function AnalysisTab({jobs,clients,expenses,settings}){
+  const now=new Date(),y=now.getFullYear(),m=now.getMonth();
+  const PRESETS=[{label:"今月",start:`${y}-${String(m+1).padStart(2,"0")}-01`,end:toDay()},{label:"先月",start:new Date(y,m-1,1).toISOString().slice(0,10),end:new Date(y,m,0).toISOString().slice(0,10)},{label:"今四半期",start:new Date(y,Math.floor(m/3)*3,1).toISOString().slice(0,10),end:toDay()},{label:"今年",start:`${y}-01-01`,end:`${y}-12-31`},{label:"去年",start:`${y-1}-01-01`,end:`${y-1}-12-31`},{label:"全期間",start:"2000-01-01",end:"2099-12-31"}];
+  const[preset,setPreset]=useState("今年");const[customStart,setCustomStart]=useState(`${y}-01-01`);const[customEnd,setCustomEnd]=useState(toDay());const[isCustom,setIsCustom]=useState(false);
+  const start=isCustom?customStart:(PRESETS.find(p=>p.label===preset)?.start||`${y}-01-01`);
+  const end=isCustom?customEnd:(PRESETS.find(p=>p.label===preset)?.end||toDay());
   const gc=id=>clients.find(c=>c.id===id);
-  const paid=jobs.filter(j=>["納品済","入金済"].includes(j.status));
-
-  // クライアント別
-  const cStats=useMemo(()=>{
-    const m={};
-    jobs.forEach(j=>{const cl=gc(j.clientId),k=j.clientId;
-      if(!m[k])m[k]={name:cl?.name||"不明",color:cl?.color,count:0,total:0};
-      m[k].count++;m[k].total+=totalPrice(j);
-    });
-    return Object.values(m).sort((a,b)=>b.total-a.total);
-  },[jobs,clients]);
-
-  // 月別
-  const mData=useMemo(()=>{
-    const m={};paid.forEach(j=>{const mo=j.receiveDate?.slice(0,7);if(!mo)return;
-      if(!m[mo])m[mo]={month:mo,income:0};m[mo].income+=totalPrice(j);});
-    return Object.values(m).sort((a,b)=>a.month.localeCompare(b.month)).slice(-6);
-  },[jobs]);
-  const maxInc=Math.max(...mData.map(m=>m.income),1);
-
-  // 種別別（内訳から集計）
-  const typeStats=useMemo(()=>{
-    const m={};
-    jobs.forEach(j=>{
-      (j.breakdown||[]).forEach(r=>{
-        if(!m[r.type])m[r.type]={type:r.type,count:0,total:0,qty:0};
-        m[r.type].count++;
-        m[r.type].qty+=Number(r.qty||0);
-        m[r.type].total+=Number(r.qty||0)*Number(r.unitPrice||0);
-      });
-    });
-    return Object.values(m).sort((a,b)=>b.total-a.total);
-  },[jobs]);
-
-  const hrRates=settings.jobTypes.map(t=>({...t,rate:t.hours>0?Math.round(t.defaultPrice/t.hours):0}));
-
-  return(
-    <div>
-      <h2 style={{fontSize:18,fontWeight:700,color:"#1E293B",marginBottom:"1rem"}}>分析・レポート</h2>
-      <Card style={{marginBottom:"1rem"}}>
-        <div style={{fontSize:14,fontWeight:700,marginBottom:12,color:"#1E293B"}}>月別収益推移</div>
-        <div style={{display:"flex",alignItems:"flex-end",gap:8,height:110}}>
-          {mData.map(m=><div key={m.month} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-            <div style={{fontSize:10,color:"#64748B"}}>{yen(m.income)}</div>
-            <div style={{width:"100%",background:"var(--clr-primary)",borderRadius:"4px 4px 0 0",height:`${Math.max(4,Math.round((m.income/maxInc)*72))}px`}}/>
-            <div style={{fontSize:11,color:"#64748B"}}>{m.month.slice(5)}月</div>
-          </div>)}
-          {mData.length===0&&<div style={{color:"#64748B",fontSize:13}}>データがありません</div>}
-        </div>
-      </Card>
-
-      {/* 種別別集計（内訳から） */}
-      <Card style={{marginBottom:"1rem"}}>
-        <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:"#1E293B"}}>作業種別別集計（内訳から）</div>
-        {typeStats.length===0?<div style={{color:"#64748B",fontSize:13}}>データがありません</div>:typeStats.map((t,i)=>(
-          <div key={t.type} style={{marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}>
-              <span style={{fontWeight:i===0?700:400,color:"#1E293B"}}>{t.type} <span style={{color:"#64748B",fontWeight:400,fontSize:12}}>({t.qty}件)</span></span>
-              <span style={{fontWeight:600}}>{yen(t.total)}</span>
-            </div>
-            <div style={{height:6,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}}>
-              <div style={{height:"100%",width:`${Math.round((t.total/(typeStats[0]?.total||1))*100)}%`,background:"var(--clr-primary)",borderRadius:3}}/>
-            </div>
-          </div>
-        ))}
-      </Card>
-
-      <Card style={{marginBottom:"1rem"}}>
-        <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:"#1E293B"}}>クライアント別売上</div>
-        {cStats.map((c,i)=>(
-          <div key={c.name} style={{marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}>
-              <span style={{fontWeight:i===0?700:400,color:"#1E293B",display:"flex",alignItems:"center",gap:6}}><span style={{width:8,height:8,borderRadius:"50%",background:c.color,display:"inline-block"}}/>{c.name}<span style={{color:"#64748B",fontWeight:400,fontSize:12}}>({c.count}件)</span></span>
-              <span style={{fontWeight:600}}>{yen(c.total)}</span>
-            </div>
-            <div style={{height:6,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}}>
-              <div style={{height:"100%",width:`${Math.round((c.total/(cStats[0]?.total||1))*100)}%`,background:c.color,borderRadius:3}}/>
-            </div>
-          </div>
-        ))}
-      </Card>
-
-      <Card>
-        <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:"#1E293B",display:"flex",alignItems:"center",gap:4}}><Tooltip text={TOOLTIPS.jobType}>時間単価分析</Tooltip></div>
-        {hrRates.map(t=>{const isLow=t.rate<settings.alertHourlyRate;return(
-          <div key={t.id} style={{marginBottom:10,padding:"10px 12px",background:isLow?"#FFF7ED":"var(--clr-bg)",borderRadius:10,border:`1.5px solid ${isLow?"#FED7AA":"#E2E8F0"}`}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div><div style={{fontWeight:700,fontSize:13,color:"#1E293B"}}>{t.name}</div><div style={{fontSize:12,color:"#64748B",marginTop:2}}>{yen(t.defaultPrice)} ÷ {t.hours}h</div></div>
-              <div style={{textAlign:"right"}}><div style={{fontSize:18,fontWeight:700,color:isLow?"#C2410C":"#15803D"}}>{yen(t.rate)}/h</div>{isLow&&<div style={{fontSize:11,color:"#C2410C"}}>⚠ 目標{yen(settings.alertHourlyRate)}/h未満</div>}</div>
-            </div>
-            {isLow&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #FED7AA",fontSize:12,color:"#92400E",lineHeight:1.7}}>💡 目標時給にするには単価を<strong>{yen(settings.alertHourlyRate*t.hours)}</strong>以上か、作業時間を<strong>{Math.round(t.defaultPrice/settings.alertHourlyRate*10)/10}h</strong>以内に短縮してください。</div>}
-          </div>
-        );})}
-      </Card>
+  const filtered=useMemo(()=>jobs.filter(j=>j.receiveDate>=start&&j.receiveDate<=end),[jobs,start,end]);
+  const paid=filtered.filter(j=>["納品済","入金済"].includes(j.status));
+  const totalInc=paid.reduce((s,j)=>s+totalPrice(j),0);
+  const unpaidInc=filtered.filter(j=>["受付","制作中","修正中"].includes(j.status)).reduce((s,j)=>s+totalPrice(j),0);
+  const months=Math.max(1,Math.ceil((new Date(end)-new Date(start))/(1000*60*60*24*30)));
+  const monthlyExpTotal=expenses.filter(e=>e.type==="monthly").reduce((s,e)=>s+Number(e.amount),0);
+  const periodExp=monthlyExpTotal*months;
+  const netInc=totalInc-periodExp;
+  const monthDiff=Math.max(1,(new Date(end).getFullYear()-new Date(start).getFullYear())*12+(new Date(end).getMonth()-new Date(start).getMonth())||1);
+  const avgMonthlyInc=totalInc/monthDiff;const avgMonthlyJobs=filtered.length/monthDiff;
+  const typeStats=useMemo(()=>{const m={};filtered.forEach(j=>(j.breakdown||[]).forEach(r=>{if(!m[r.type])m[r.type]={type:r.type,qty:0,total:0};m[r.type].qty+=Number(r.qty||0);m[r.type].total+=Number(r.qty||0)*Number(r.unitPrice||0);}));return Object.values(m).sort((a,b)=>b.total-a.total);},[filtered]);
+  const cStats=useMemo(()=>{const m={};filtered.forEach(j=>{const cl=gc(j.clientId),k=j.clientId;if(!m[k])m[k]={name:cl?.name||"不明",color:cl?.color,count:0,total:0};m[k].count++;m[k].total+=totalPrice(j);});return Object.values(m).sort((a,b)=>b.total-a.total);},[filtered,clients]);
+  const ty=String(y);
+  const yearIncome=jobs.filter(j=>j.receiveDate?.startsWith(ty)&&["納品済","入金済"].includes(j.status)).reduce((s,j)=>s+totalPrice(j),0);
+  const uninvoiced=jobs.filter(j=>j.status==="納品済"&&!j.invoiced);
+  const waitingPayment=jobs.filter(j=>j.invoiced&&j.status==="納品済");
+  const lowRate=jobs.filter(j=>j.actualHours>0&&hrRate(totalPrice(j),j.actualHours)<settings.alertHourlyRate&&["受付","制作中","修正中"].includes(j.status));
+  return(<div>
+    <h2 style={{fontSize:18,fontWeight:700,color:"#1E293B",marginBottom:"1rem"}}>分析・レポート</h2>
+    <Card style={{marginBottom:"1rem"}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#1E293B",marginBottom:10}}>集計期間</div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:isCustom?10:0}}>{PRESETS.map(p=><button key={p.label} onClick={()=>{setPreset(p.label);setIsCustom(false);}} style={{fontSize:12,padding:"4px 12px",background:!isCustom&&preset===p.label?"var(--clr-primary)":"transparent",color:!isCustom&&preset===p.label?"#fff":"#64748B",border:`1.5px solid ${!isCustom&&preset===p.label?"var(--clr-primary)":"#E2E8F0"}`,borderRadius:20}}>{p.label}</button>)}<button onClick={()=>setIsCustom(true)} style={{fontSize:12,padding:"4px 12px",background:isCustom?"var(--clr-primary)":"transparent",color:isCustom?"#fff":"#64748B",border:`1.5px solid ${isCustom?"var(--clr-primary)":"#E2E8F0"}`,borderRadius:20}}>自由設定</button></div>
+      {isCustom&&<div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:8}}><input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{width:150,boxSizing:"border-box"}}/><span style={{color:"#64748B",fontSize:13}}>〜</span><input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{width:150,boxSizing:"border-box"}}/></div>}
+      <div style={{marginTop:8,fontSize:12,color:"#94A3B8"}}>{start} 〜 {end}（{filtered.length}件の案件が対象）</div>
+    </Card>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:"1rem"}}>
+      <MetricCard label="収益合計（入金済）" value={yen(totalInc)} color="#10B981"/>
+      <MetricCard label="未入金（受注済）" value={yen(unpaidInc)} color="#60A5FA"/>
+      <MetricCard label="経費推定" value={yen(periodExp)} color="#EF4444"/>
+      <MetricCard label="収支（収益−経費）" value={yen(netInc)} warn={netInc<0}/>
+      <MetricCard label="案件数" value={`${filtered.length}件`}/>
+      <MetricCard label="月平均件数" value={`${Math.round(avgMonthlyJobs*10)/10}件`}/>
+      <MetricCard label="月平均収益" value={yen(Math.round(avgMonthlyInc))}/>
+      <MetricCard label="月平均経費" value={yen(monthlyExpTotal)}/>
     </div>
-  );
+    <Card style={{marginBottom:"1rem"}} accent="#FED7AA">
+      <div style={{fontSize:13,fontWeight:700,color:"#C2410C",marginBottom:10,display:"flex",alignItems:"center",gap:6}}><i className="ti ti-alert-triangle"/>フリーランサー共通の注意点</div>
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {[{label:"103万円",val:1030000},{label:"130万円",val:1300000},{label:"150万円",val:1500000}].map(wall=>{const pct=Math.round((yearIncome/wall.val)*100),over=yearIncome>=wall.val;return(<div key={wall.label} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:over?"#FFF1F2":"var(--clr-bg)",border:`1px solid ${over?"#FECDD3":"#E2E8F0"}`,borderRadius:8}}><i className={`ti ${over?"ti-alert-circle":"ti-shield-check"}`} style={{color:over?"#EF4444":"#10B981",fontSize:14,flexShrink:0}}/><span style={{flex:1,fontSize:12,color:"#334155"}}>{wall.label}の壁: 今年の収益 {yen(yearIncome)} ({pct}%)</span>{over&&<span style={{fontSize:11,color:"#EF4444",fontWeight:700}}>超過</span>}{!over&&pct>=80&&<span style={{fontSize:11,color:"#C2410C",fontWeight:700}}>注意</span>}</div>);})}
+        <div style={{padding:"6px 10px",background:uninvoiced.length>0?"#FFF1F2":"var(--clr-bg)",border:`1px solid ${uninvoiced.length>0?"#FECDD3":"#E2E8F0"}`,borderRadius:8,display:"flex",alignItems:"center",gap:8}}><i className={`ti ${uninvoiced.length>0?"ti-file-alert":"ti-file-check"}`} style={{color:uninvoiced.length>0?"#EF4444":"#10B981",fontSize:14,flexShrink:0}}/><span style={{flex:1,fontSize:12,color:"#334155"}}>未請求の案件: {uninvoiced.length}件{uninvoiced.length>0?` （${yen(uninvoiced.reduce((s,j)=>s+totalPrice(j),0))}）`:""}</span>{uninvoiced.length>0&&<span style={{fontSize:11,color:"#EF4444",fontWeight:700}}>要対応</span>}</div>
+        <div style={{padding:"6px 10px",background:"var(--clr-bg)",border:"1px solid #E2E8F0",borderRadius:8,display:"flex",alignItems:"center",gap:8}}><i className="ti ti-clock" style={{color:waitingPayment.length>0?"#F59E0B":"#10B981",fontSize:14,flexShrink:0}}/><span style={{fontSize:12,color:"#334155"}}>請求済・入金待ち: {waitingPayment.length}件{waitingPayment.length>0?` （${yen(waitingPayment.reduce((s,j)=>s+totalPrice(j),0))}）`:""}</span></div>
+        <div style={{padding:"6px 10px",background:lowRate.length>0?"#FFF7ED":"var(--clr-bg)",border:`1px solid ${lowRate.length>0?"#FED7AA":"#E2E8F0"}`,borderRadius:8,display:"flex",alignItems:"center",gap:8}}><i className={`ti ${lowRate.length>0?"ti-coin-off":"ti-coin"}`} style={{color:lowRate.length>0?"#C2410C":"#10B981",fontSize:14,flexShrink:0}}/><span style={{fontSize:12,color:"#334155"}}>時給アラート（目標{yen(settings.alertHourlyRate)}/h未満）: 進行中{lowRate.length}件</span></div>
+        <div style={{padding:"8px 10px",background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:8,fontSize:12,color:"#1D4ED8",lineHeight:1.7}}><strong>💡 確定申告メモ：</strong>1月〜12月の所得を翌年2〜3月に申告。青色申告（65万控除）がおすすめ。領収書・請求書は7年保管。副業所得20万円超で申告義務あり。</div>
+      </div>
+    </Card>
+    {typeStats.length>0&&<Card style={{marginBottom:"1rem"}}><div style={{fontSize:14,fontWeight:700,marginBottom:10,color:"#1E293B"}}>作業種別別集計</div>{typeStats.map((t,i)=>(<div key={t.type} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}><span style={{fontWeight:i===0?700:400,color:"#1E293B"}}>{t.type} <span style={{color:"#64748B",fontWeight:400,fontSize:12}}>{t.qty}件</span></span><span style={{fontWeight:600}}>{yen(t.total)}</span></div><div style={{height:6,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.round((t.total/(typeStats[0]?.total||1))*100)}%`,background:"var(--clr-primary)",borderRadius:3}}/></div></div>))}</Card>}
+    {cStats.length>0&&<Card style={{marginBottom:"1rem"}}><div style={{fontSize:14,fontWeight:700,marginBottom:10,color:"#1E293B"}}>クライアント別売上</div>{cStats.map((c,i)=>(<div key={c.name} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}><span style={{fontWeight:i===0?700:400,display:"flex",alignItems:"center",gap:6}}><span style={{width:8,height:8,borderRadius:"50%",background:c.color,display:"inline-block"}}/>{c.name}<span style={{color:"#64748B",fontWeight:400,fontSize:12}}>({c.count}件)</span></span><span style={{fontWeight:600}}>{yen(c.total)}</span></div><div style={{height:6,background:"#E2E8F0",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.round((c.total/(cStats[0]?.total||1))*100)}%`,background:c.color,borderRadius:3}}/></div></div>))}</Card>}
+    {(()=>{const mData={};paid.forEach(j=>{const mo=j.receiveDate?.slice(0,7);if(!mo)return;if(!mData[mo])mData[mo]={month:mo,income:0};mData[mo].income+=totalPrice(j);});const arr=Object.values(mData).sort((a,b)=>a.month.localeCompare(b.month));if(arr.length===0)return null;const maxInc=Math.max(...arr.map(m=>m.income),1);return(<Card><div style={{fontSize:14,fontWeight:700,marginBottom:12,color:"#1E293B"}}>月別収益推移</div><div style={{display:"flex",alignItems:"flex-end",gap:6,height:100}}>{arr.map(m=><div key={m.month} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><div style={{fontSize:10,color:"#64748B"}}>{yen(m.income)}</div><div style={{width:"100%",background:"var(--clr-primary)",borderRadius:"3px 3px 0 0",height:`${Math.max(3,Math.round((m.income/maxInc)*68))}px`}}/><div style={{fontSize:10,color:"#64748B"}}>{m.month.slice(5)}月</div></div>)}</div></Card>);})()}
+  </div>);
 }
 
-// ── INVOICE ────────────────────────────────────────────────
 function InvoiceTab({jobs,clients}){
-  const[selCl,setSelCl]=useState("");
-  const[selMo,setSelMo]=useState(thisMonth());
-  const[selJ,setSelJ]=useState([]);
-  const[invNum,setInvNum]=useState(`INV-${Date.now().toString().slice(-6)}`);
-  const[preview,setPreview]=useState(false);
-  const[addonDisp,setAddonDisp]=useState("separate");
+  const[selCl,setSelCl]=useState("");const[selMo,setSelMo]=useState(thisMonth());const[selJ,setSelJ]=useState([]);const[invNum,setInvNum]=useState(`INV-${Date.now().toString().slice(-6)}`);const[preview,setPreview]=useState(false);const[addonDisp,setAddonDisp]=useState("separate");
   const gc=id=>clients.find(c=>c.id===id);
   const elig=jobs.filter(j=>(!selCl||j.clientId===Number(selCl))&&(!selMo||j.receiveDate?.startsWith(selMo)));
   const invJ=jobs.filter(j=>selJ.includes(j.id));
   const invTotal=invJ.reduce((s,j)=>s+totalPrice(j),0);
-  const clName=gc(invJ[0]?.clientId)?.name||"クライアント名";
-  const payM=gc(invJ[0]?.clientId)?.paymentMethod||"銀行振込";
-
-  function copyText(){
-    const lines=[`請求書 ${invNum}`,`発行日: ${toDay()}`,`請求先: ${clName} 御中`,""];
-    invJ.forEach(j=>{
-      lines.push(`■ ${j.title||"案件"}`);
-      (j.breakdown||[]).forEach(r=>lines.push(`  ${r.type} ×${r.qty}  ${yen(r.qty*r.unitPrice)}`));
-      if(addonDisp==="separate")(j.addOns||[]).forEach(a=>lines.push(`  追加料金（${a.reason}）  ${yen(a.amount)}`));
-      lines.push(`  小計: ${yen(totalPrice(j))}`,"");
-    });
-    lines.push(`合計: ${yen(invTotal)}`,`お支払い方法: ${payM}`);
-    navigator.clipboard?.writeText(lines.join("\n")).then(()=>alert("コピーしました"));
-  }
-
-  return(
-    <div>
-      <h2 style={{fontSize:18,fontWeight:700,color:"#1E293B",marginBottom:"1rem"}}>請求書</h2>
-      <Card style={{marginBottom:"1rem"}}>
-        <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:"#1E293B"}}>対象案件を選択</div>
-        <div className="grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-          <div><Lbl>クライアント</Lbl><select value={selCl} onChange={e=>setSelCl(e.target.value)} style={{width:"100%"}}><option value="">すべて</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-          <div><Lbl>対象月</Lbl><input type="month" value={selMo} onChange={e=>setSelMo(e.target.value)} style={{width:"100%",boxSizing:"border-box"}}/></div>
-        </div>
-        {/* 案件リスト */}
-        <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {elig.length===0&&<div style={{color:"#64748B",fontSize:13}}>該当案件がありません</div>}
-          {elig.map(j=>{
-            const cl=gc(j.clientId);
-            return(
-              <label key={j.id} style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",padding:"8px 10px",borderRadius:8,background:selJ.includes(j.id)?"var(--clr-bg)":"transparent",border:`1px solid ${selJ.includes(j.id)?"#E2E8F0":"transparent"}`}}>
-                <input type="checkbox" checked={selJ.includes(j.id)} onChange={()=>setSelJ(p=>p.includes(j.id)?p.filter(x=>x!==j.id):[...p,j.id])} style={{accentColor:"var(--clr-primary)",marginTop:3}}/>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:600,color:"#1E293B"}}>{j.title||"（案件名なし）"}</div>
-                  <div style={{fontSize:12,color:"#64748B",marginTop:2}}>{cl?.name} · {j.receiveDate}</div>
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
-                    {(j.breakdown||[]).map(r=><span key={r.id} style={{fontSize:11,color:"#64748B"}}>{r.type}×{r.qty} {yen(r.qty*r.unitPrice)}</span>)}
-                  </div>
-                </div>
-                <div style={{fontSize:13,fontWeight:700,color:"#1E293B",flexShrink:0}}>{yen(totalPrice(j))}</div>
-              </label>
-            );
-          })}
-        </div>
-        <div style={{marginTop:10,display:"flex",gap:8,justifyContent:"space-between",flexWrap:"wrap"}}>
-          <button onClick={()=>setSelJ(elig.map(j=>j.id))} style={{fontSize:12}}>すべて選択</button>
-          <button onClick={()=>setPreview(true)} disabled={selJ.length===0} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"6px 18px",fontWeight:700,fontSize:13,cursor:"pointer"}}>請求書を作成（{selJ.length}件）</button>
-        </div>
-      </Card>
-
-      {preview&&invJ.length>0&&<Card>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
-          <div style={{fontSize:14,fontWeight:700,color:"#1E293B"}}>プレビュー</div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            <select value={addonDisp} onChange={e=>setAddonDisp(e.target.value)} style={{fontSize:12,padding:"4px 8px",width:"auto"}}><option value="separate">追加料金を別行</option><option value="merged">まとめて表示</option></select>
-            <input value={invNum} onChange={e=>setInvNum(e.target.value)} style={{fontSize:12,width:140}}/>
-            <button onClick={copyText} style={{fontSize:12,padding:"4px 10px"}}><i className="ti ti-copy"/> コピー</button>
-            <button onClick={()=>window.print()} className="no-print" style={{fontSize:12,padding:"4px 10px"}}><i className="ti ti-printer"/> 印刷</button>
-          </div>
-        </div>
-        <div style={{border:"1.5px solid #E2E8F0",borderRadius:10,padding:"1.25rem",background:"#FAFAFA"}}>
-          <div style={{fontSize:20,fontWeight:700,marginBottom:4,color:"#1E293B"}}>請求書</div>
-          <div style={{fontSize:12,color:"#64748B",marginBottom:16}}>{invNum}　{toDay()}</div>
-          <div style={{marginBottom:16,fontSize:14}}><strong>{clName}</strong> 御中</div>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-            <thead><tr style={{borderBottom:"1.5px solid #E2E8F0"}}>
-              <th style={{textAlign:"left",padding:"6px 0",color:"#64748B",fontWeight:600}}>内容</th>
-              <th style={{textAlign:"center",padding:"6px 0",color:"#64748B",fontWeight:600,width:50}}>数量</th>
-              <th style={{textAlign:"right",padding:"6px 0",color:"#64748B",fontWeight:600,width:80}}>単価</th>
-              <th style={{textAlign:"right",padding:"6px 0",color:"#64748B",fontWeight:600,width:90}}>小計</th>
-            </tr></thead>
-            <tbody>
-              {invJ.map(j=>[
-                <tr key={`j-${j.id}`}><td colSpan={4} style={{padding:"8px 0 4px",fontWeight:700,color:"#1E293B",fontSize:13}}>{j.title||"案件"}</td></tr>,
-                ...(j.breakdown||[]).map(r=><tr key={r.id}>
-                  <td style={{padding:"3px 0 3px 12px",color:"#334155"}}>{r.type}{r.note?` (${r.note})`:""}</td>
-                  <td style={{textAlign:"center",color:"#64748B"}}>{r.qty}</td>
-                  <td style={{textAlign:"right",color:"#64748B"}}>{yen(r.unitPrice)}</td>
-                  <td style={{textAlign:"right",fontWeight:500}}>{yen(r.qty*r.unitPrice)}</td>
-                </tr>),
-                ...(addonDisp==="separate"?(j.addOns||[]).map(a=><tr key={`a-${a.id}`}>
-                  <td colSpan={3} style={{padding:"3px 0 3px 12px",color:"#C2410C",fontSize:12}}>追加料金（{a.reason}{a.customReason?": "+a.customReason:""}）</td>
-                  <td style={{textAlign:"right",color:"#C2410C"}}>{yen(a.amount)}</td>
-                </tr>):[]),
-                <tr key={`sub-${j.id}`} style={{borderBottom:"1px solid #E2E8F0"}}>
-                  <td colSpan={3} style={{padding:"3px 0 8px 12px",color:"#64748B",fontSize:12}}>小計</td>
-                  <td style={{textAlign:"right",padding:"3px 0 8px",fontWeight:600}}>{yen(totalPrice(j))}</td>
-                </tr>
-              ])}
-            </tbody>
-            <tfoot><tr style={{borderTop:"1.5px solid #E2E8F0"}}>
-              <td colSpan={3} style={{padding:"10px 0",fontWeight:700,fontSize:15}}>合計</td>
-              <td style={{textAlign:"right",fontWeight:700,fontSize:20,color:"#1E293B",padding:"10px 0"}}>{yen(invTotal)}</td>
-            </tr></tfoot>
-          </table>
-          <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid #E2E8F0",fontSize:13,color:"#64748B"}}>お支払い方法: <strong style={{color:"#334155"}}>{payM}</strong></div>
-        </div>
-      </Card>}
-    </div>
-  );
+  const clName=gc(invJ[0]?.clientId)?.name||"クライアント名";const payM=gc(invJ[0]?.clientId)?.paymentMethod||"銀行振込";
+  function copyText(){const lines=[`請求書 ${invNum}`,`発行日: ${toDay()}`,`請求先: ${clName} 御中`,""];invJ.forEach(j=>{lines.push(`■ ${j.title||"案件"}`);(j.breakdown||[]).forEach(r=>lines.push(`  ${r.type} ×${r.qty}  ${yen(r.qty*r.unitPrice)}`));if(addonDisp==="separate")(j.addOns||[]).forEach(a=>lines.push(`  追加料金（${a.reason}）  ${yen(a.amount)}`));lines.push(`  小計: ${yen(totalPrice(j))}`,"");});lines.push(`合計: ${yen(invTotal)}`,`お支払い方法: ${payM}`);navigator.clipboard?.writeText(lines.join("\n")).then(()=>alert("コピーしました"));}
+  return(<div>
+    <h2 style={{fontSize:18,fontWeight:700,color:"#1E293B",marginBottom:"1rem"}}>請求書</h2>
+    <Card style={{marginBottom:"1rem"}}>
+      <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:"#1E293B"}}>対象案件を選択</div>
+      <div className="grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}><div><Lbl>クライアント</Lbl><select value={selCl} onChange={e=>setSelCl(e.target.value)} style={{width:"100%"}}><option value="">すべて</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div><div><Lbl>対象月</Lbl><input type="month" value={selMo} onChange={e=>setSelMo(e.target.value)} style={{width:"100%",boxSizing:"border-box"}}/></div></div>
+      {elig.length===0&&<div style={{color:"#64748B",fontSize:13,padding:"8px 0"}}>該当案件がありません</div>}
+      {elig.map(j=>{const cl=gc(j.clientId),checked=selJ.includes(j.id);return(<div key={j.id} onClick={()=>setSelJ(p=>p.includes(j.id)?p.filter(x=>x!==j.id):[...p,j.id])} style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",padding:"10px 12px",borderRadius:8,background:checked?"var(--clr-bg)":"transparent",border:`1.5px solid ${checked?"var(--clr-primary)":"#E2E8F0"}`,marginBottom:6,userSelect:"none"}}><div style={{width:18,height:18,borderRadius:4,border:`2px solid ${checked?"var(--clr-primary)":"#CBD5E1"}`,background:checked?"var(--clr-primary)":"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>{checked&&<span style={{color:"#fff",fontSize:11,fontWeight:700}}>✓</span>}</div><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:"#1E293B"}}>{j.title||"（案件名なし）"}</div><div style={{fontSize:12,color:"#64748B",marginTop:2}}>{cl?.name} · {j.receiveDate}</div><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{(j.breakdown||[]).map(r=><span key={r.id} style={{fontSize:11,color:"#64748B",background:"var(--clr-bg)",border:"1px solid #E2E8F0",borderRadius:4,padding:"1px 6px"}}>{r.type}×{r.qty} {yen(r.qty*r.unitPrice)}</span>)}</div></div><div style={{fontSize:14,fontWeight:700,color:"#1E293B",flexShrink:0}}>{yen(totalPrice(j))}</div></div>);})}
+      <div style={{marginTop:10,display:"flex",gap:8,justifyContent:"space-between",flexWrap:"wrap"}}><button onClick={()=>setSelJ(elig.map(j=>j.id))} style={{fontSize:12}}>すべて選択</button><button onClick={()=>setPreview(true)} disabled={selJ.length===0} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"6px 18px",fontWeight:700,fontSize:13,cursor:"pointer",opacity:selJ.length===0?0.45:1}}>請求書を作成（{selJ.length}件）</button></div>
+    </Card>
+    {preview&&invJ.length>0&&<Card>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}><div style={{fontSize:14,fontWeight:700,color:"#1E293B"}}>プレビュー</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}><select value={addonDisp} onChange={e=>setAddonDisp(e.target.value)} style={{fontSize:12,padding:"4px 8px",width:"auto"}}><option value="separate">追加料金を別行</option><option value="merged">まとめて表示</option></select><input value={invNum} onChange={e=>setInvNum(e.target.value)} style={{fontSize:12,width:140}}/><button onClick={copyText} style={{fontSize:12,padding:"4px 10px"}}><i className="ti ti-copy"/> コピー</button><button onClick={()=>window.print()} className="no-print" style={{fontSize:12,padding:"4px 10px"}}><i className="ti ti-printer"/> 印刷</button></div></div>
+      <div style={{border:"1.5px solid #E2E8F0",borderRadius:10,padding:"1.25rem",background:"#FAFAFA"}}>
+        <div style={{fontSize:20,fontWeight:700,marginBottom:4,color:"#1E293B"}}>請求書</div>
+        <div style={{fontSize:12,color:"#64748B",marginBottom:16}}>{invNum}　{toDay()}</div>
+        <div style={{marginBottom:16,fontSize:14}}><strong>{clName}</strong> 御中</div>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead><tr style={{borderBottom:"1.5px solid #E2E8F0"}}><th style={{textAlign:"left",padding:"6px 0",color:"#64748B",fontWeight:600}}>内容</th><th style={{textAlign:"center",padding:"6px 0",color:"#64748B",fontWeight:600,width:44}}>数量</th><th style={{textAlign:"right",padding:"6px 0",color:"#64748B",fontWeight:600,width:80}}>単価</th><th style={{textAlign:"right",padding:"6px 0",color:"#64748B",fontWeight:600,width:88}}>小計</th></tr></thead>
+          <tbody>{invJ.map(j=>[<tr key={`h-${j.id}`}><td colSpan={4} style={{padding:"8px 0 4px",fontWeight:700,color:"#1E293B",fontSize:13,borderTop:"1px solid #F1F5F9"}}>{j.title||"案件"}</td></tr>,...(j.breakdown||[]).map(r=><tr key={r.id}><td style={{padding:"3px 0 3px 12px",color:"#334155"}}>{r.type}{r.note?` (${r.note})`:""}</td><td style={{textAlign:"center",color:"#64748B",padding:"3px 0"}}>{r.qty}</td><td style={{textAlign:"right",color:"#64748B",padding:"3px 0"}}>{yen(r.unitPrice)}</td><td style={{textAlign:"right",fontWeight:500,padding:"3px 0"}}>{yen(r.qty*r.unitPrice)}</td></tr>),...(addonDisp==="separate"?(j.addOns||[]).map(a=><tr key={`a-${a.id}`}><td colSpan={3} style={{padding:"3px 0 3px 12px",color:"#C2410C",fontSize:12}}>追加料金（{a.reason}{a.customReason?": "+a.customReason:""}）</td><td style={{textAlign:"right",color:"#C2410C",padding:"3px 0"}}>{yen(a.amount)}</td></tr>):[]),<tr key={`s-${j.id}`}><td colSpan={3} style={{padding:"3px 0 8px 12px",color:"#64748B",fontSize:11,borderBottom:"1px solid #E2E8F0"}}>小計</td><td style={{textAlign:"right",padding:"3px 0 8px",fontWeight:600,borderBottom:"1px solid #E2E8F0"}}>{yen(totalPrice(j))}</td></tr>])}</tbody>
+          <tfoot><tr><td colSpan={3} style={{padding:"10px 0",fontWeight:700,fontSize:15}}>合計</td><td style={{textAlign:"right",fontWeight:700,fontSize:20,color:"#1E293B",padding:"10px 0"}}>{yen(invTotal)}</td></tr></tfoot>
+        </table>
+        <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid #E2E8F0",fontSize:13,color:"#64748B"}}>お支払い方法: <strong style={{color:"#334155"}}>{payM}</strong></div>
+      </div>
+    </Card>}
+  </div>);
 }
 
-// ── CONTRACT ───────────────────────────────────────────────
 function ContractTab({jobs,clients}){
-  const[selJob,setSelJob]=useState("");
-  const[form,setForm]=useState({revisions:3,paymentDays:14,deliveryFormat:"MP4, JPG",copyright:"クライアントに譲渡",additionalNotes:"",paymentTiming:"納品後"});
-  const[editTxt,setEditTxt]=useState("");const[generated,setGenerated]=useState(false);
-  const gc=id=>clients.find(c=>c.id===id);
-  const job=jobs.find(j=>j.id===Number(selJob));const client=job?gc(job.clientId):null;const tp=job?totalPrice(job):0;
-  function generate(){
-    const bdLines=(job?.breakdown||[]).map(r=>`    ${r.type} ×${r.qty}  ${yen(r.qty*r.unitPrice)}`);
-    const text=["業務委託 受注書","",`発行日: ${toDay()}`,`受注番号: ORD-${Date.now().toString().slice(-6)}`,
-      ``,`【依頼者】${client?.name||""}`,`【受注者】（あなたの名前・屋号）`,"",
-      "─────────────────────────────","■ 業務内容",
-      `  案件名: ${job?.title||""}`,`  納品物: ${form.deliveryFormat}`,
-      `  受注日: ${job?.receiveDate||""}`,`  納品予定日: ${job?.deadline||""}（修正対応完了後の最終納品日）`,
-      "","■ 作業内訳",...bdLines,
-      "","■ 料金",`  内訳合計: ${yen(bdTotal(job?.breakdown))}`,
-      ...(job?.addOns?.length?[`  追加料金: ${yen(tp-bdTotal(job?.breakdown))}`]:[]),
-      `  合計（税込）: ${yen(tp)}`,
-      "","■ 修正について",`  本見積もりに含まれる修正回数: ${form.revisions}回まで`,
-      "  上記を超える修正は追加料金が発生します（都度ご相談）。",
-      "  納品日は修正回数の対応完了後を想定しており、修正が増えた場合は","  納品日が後ろ倒しになる可能性があります。",
-      "","■ 追加料金について","  素材の量・仕様・構成が当初の想定を大幅に超えた場合、",
-      "  事前にご連絡のうえ追加料金が発生することがあります。",
-      "","■ 著作権",`  ${form.copyright}`,
-      "","■ お支払い",`  方法: ${client?.paymentMethod||"銀行振込"}`,
-      `  タイミング: ${form.paymentTiming}`,
-      `  期限: ${form.paymentTiming==="前払い"?"受注確認後":"納品後"} ${form.paymentDays}日以内`,
-      ...(client?.paymentDelay?["  ※ 過去の入金遅延により、今回は前払いをお願いしております。"]:[]),
-      "","■ 特記事項",form.additionalNotes||"  なし",
-      "","─────────────────────────────",
-      "上記内容をご確認のうえ、ご同意いただけましたらご返信ください。"].join("\n");
-    setEditTxt(text);setGenerated(true);
-  }
-  return(
-    <div>
-      <h2 style={{fontSize:18,fontWeight:700,color:"#1E293B",marginBottom:"1rem"}}>受注書・契約書</h2>
-      <Card style={{marginBottom:"1rem"}}>
-        <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:"#1E293B"}}>案件を選択</div>
-        <select value={selJob} onChange={e=>{setSelJob(e.target.value);setGenerated(false);}} style={{width:"100%",marginBottom:12}}>
-          <option value="">案件を選んでください</option>
-          {jobs.map(j=><option key={j.id} value={j.id}>{gc(j.clientId)?.name} — {j.title||"（案件名なし）"} ({j.receiveDate})</option>)}
-        </select>
-        {job&&<><div className="grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <div><Lbl>修正回数</Lbl><input type="number" value={form.revisions} onChange={e=>setForm(f=>({...f,revisions:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
-          <div><Lbl>支払い期限（日数）</Lbl><input type="number" value={form.paymentDays} onChange={e=>setForm(f=>({...f,paymentDays:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
-          <div><Lbl>支払いタイミング</Lbl><select value={form.paymentTiming} onChange={e=>setForm(f=>({...f,paymentTiming:e.target.value}))} style={{width:"100%"}}><option>納品後</option><option>前払い</option><option>分割（前払い50%）</option></select></div>
-          <div><Lbl>納品形式</Lbl><input value={form.deliveryFormat} onChange={e=>setForm(f=>({...f,deliveryFormat:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
-          <div style={{gridColumn:"1/-1"}}><Lbl>著作権</Lbl><select value={form.copyright} onChange={e=>setForm(f=>({...f,copyright:e.target.value}))} style={{width:"100%"}}><option>クライアントに譲渡</option><option>受注者が保持（ライセンス提供）</option><option>別途協議</option></select></div>
-          <div style={{gridColumn:"1/-1"}}><Lbl>特記事項</Lbl><textarea value={form.additionalNotes} onChange={e=>setForm(f=>({...f,additionalNotes:e.target.value}))} style={{width:"100%",height:60,boxSizing:"border-box",resize:"vertical"}}/></div>
-        </div>
-        <div style={{marginTop:10,textAlign:"right"}}><button onClick={generate} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"7px 22px",fontWeight:700,cursor:"pointer"}}>受注書を生成</button></div></>}
-      </Card>
-      {generated&&<Card>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
-          <div style={{fontSize:14,fontWeight:700,color:"#1E293B"}}>受注書（編集可能）</div>
-          <div style={{display:"flex",gap:6}}>
-            <button onClick={()=>navigator.clipboard?.writeText(editTxt).then(()=>alert("コピーしました"))} style={{fontSize:12,padding:"4px 10px"}}><i className="ti ti-copy"/> コピー</button>
-            <button onClick={()=>window.print()} className="no-print" style={{fontSize:12,padding:"4px 10px"}}><i className="ti ti-printer"/> 印刷</button>
-          </div>
-        </div>
-        <textarea value={editTxt} onChange={e=>setEditTxt(e.target.value)} style={{width:"100%",height:420,boxSizing:"border-box",fontFamily:"monospace",fontSize:12,lineHeight:1.8,border:"1.5px solid #E2E8F0",borderRadius:8,padding:"12px",resize:"vertical",color:"#334155",background:"#FAFAFA"}}/>
-      </Card>}
-    </div>
-  );
+  const[selJob,setSelJob]=useState("");const[form,setForm]=useState({revisions:3,paymentDays:14,deliveryFormat:"MP4, JPG",copyright:"クライアントに譲渡",additionalNotes:"",paymentTiming:"納品後"});const[editTxt,setEditTxt]=useState("");const[generated,setGenerated]=useState(false);
+  const gc=id=>clients.find(c=>c.id===id);const job=jobs.find(j=>j.id===Number(selJob));const client=job?gc(job.clientId):null;const tp=job?totalPrice(job):0;
+  function generate(){const bdLines=(job?.breakdown||[]).map(r=>`    ${r.type} ×${r.qty}  ${yen(r.qty*r.unitPrice)}`);const text=["業務委託 受注書","",`発行日: ${toDay()}`,`受注番号: ORD-${Date.now().toString().slice(-6)}`,``,`【依頼者】${client?.name||""}`,`【受注者】（あなたの名前・屋号）`,"","─────────────────────────────","■ 業務内容",`  案件名: ${job?.title||""}`,`  納品物: ${form.deliveryFormat}`,`  受注日: ${job?.receiveDate||""}`,`  納品予定日: ${job?.deadline||""}（修正対応完了後の最終納品日）`,"","■ 作業内訳",...bdLines,"","■ 料金",`  内訳合計: ${yen(bdTotal(job?.breakdown))}`,...(job?.addOns?.length?[`  追加料金: ${yen(tp-bdTotal(job?.breakdown))}`]:[]),`  合計（税込）: ${yen(tp)}`,"","■ 修正について",`  本見積もりに含まれる修正回数: ${form.revisions}回まで`,"  上記を超える修正は追加料金が発生します（都度ご相談）。","■ 著作権",`  ${form.copyright}`,"","■ お支払い",`  方法: ${client?.paymentMethod||"銀行振込"}`,`  タイミング: ${form.paymentTiming}`,`  期限: 納品後 ${form.paymentDays}日以内`,...(client?.paymentDelay?["  ※ 過去の入金遅延により、今回は前払いをお願いしております。"]:[]),"","■ 特記事項",form.additionalNotes||"  なし","","─────────────────────────────","上記内容をご確認のうえ、ご同意いただけましたらご返信ください。"].join("\n");setEditTxt(text);setGenerated(true);}
+  return(<div>
+    <h2 style={{fontSize:18,fontWeight:700,color:"#1E293B",marginBottom:"1rem"}}>受注書・契約書</h2>
+    <Card style={{marginBottom:"1rem"}}><div style={{fontSize:14,fontWeight:700,marginBottom:10,color:"#1E293B"}}>案件を選択</div><select value={selJob} onChange={e=>{setSelJob(e.target.value);setGenerated(false);}} style={{width:"100%",marginBottom:12}}><option value="">案件を選んでください</option>{jobs.map(j=><option key={j.id} value={j.id}>{gc(j.clientId)?.name} — {j.title||"（案件名なし）"} ({j.receiveDate})</option>)}</select>
+    {job&&<><div className="grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><Lbl>修正回数</Lbl><input type="number" value={form.revisions} onChange={e=>setForm(f=>({...f,revisions:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div><div><Lbl>支払い期限（日数）</Lbl><input type="number" value={form.paymentDays} onChange={e=>setForm(f=>({...f,paymentDays:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div><div><Lbl>支払いタイミング</Lbl><select value={form.paymentTiming} onChange={e=>setForm(f=>({...f,paymentTiming:e.target.value}))} style={{width:"100%"}}><option>納品後</option><option>前払い</option><option>分割（前払い50%）</option></select></div><div><Lbl>納品形式</Lbl><input value={form.deliveryFormat} onChange={e=>setForm(f=>({...f,deliveryFormat:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div><div style={{gridColumn:"1/-1"}}><Lbl>著作権</Lbl><select value={form.copyright} onChange={e=>setForm(f=>({...f,copyright:e.target.value}))} style={{width:"100%"}}><option>クライアントに譲渡</option><option>受注者が保持（ライセンス提供）</option><option>別途協議</option></select></div><div style={{gridColumn:"1/-1"}}><Lbl>特記事項</Lbl><textarea value={form.additionalNotes} onChange={e=>setForm(f=>({...f,additionalNotes:e.target.value}))} style={{width:"100%",height:60,boxSizing:"border-box",resize:"vertical"}}/></div></div><div style={{marginTop:10,textAlign:"right"}}><button onClick={generate} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"7px 22px",fontWeight:700,cursor:"pointer"}}>受注書を生成</button></div></>}
+    </Card>
+    {generated&&<Card><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}><div style={{fontSize:14,fontWeight:700,color:"#1E293B"}}>受注書（編集可能）</div><div style={{display:"flex",gap:6}}><button onClick={()=>navigator.clipboard?.writeText(editTxt).then(()=>alert("コピーしました"))} style={{fontSize:12,padding:"4px 10px"}}><i className="ti ti-copy"/> コピー</button><button onClick={()=>window.print()} className="no-print" style={{fontSize:12,padding:"4px 10px"}}><i className="ti ti-printer"/> 印刷</button></div></div><textarea value={editTxt} onChange={e=>setEditTxt(e.target.value)} style={{width:"100%",height:420,boxSizing:"border-box",fontFamily:"monospace",fontSize:12,lineHeight:1.8,border:"1.5px solid #E2E8F0",borderRadius:8,padding:"12px",resize:"vertical",color:"#334155",background:"#FAFAFA"}}/></Card>}
+  </div>);
 }
 
-// ── SETTINGS ───────────────────────────────────────────────
-function SettingsTab({settings,setSettings,clients,setClients,onLogout,userEmail}){
+function SettingsTab({settings,setSettings,clients,setClients,onLogout,userEmail,onFeedback}){
   const[local,setLocal]=useState(settings);const[confirmDel,setConfirmDel]=useState(null);const[editCl,setEditCl]=useState(null);
   function save(){setSettings(local);alert("設定を保存しました");}
   function upJT(id,field,val){setLocal(s=>({...s,jobTypes:s.jobTypes.map(t=>t.id===id?{...t,[field]:field==="name"?val:Number(val)}:t)}));}
   function rmJT(id){setLocal(s=>({...s,jobTypes:s.jobTypes.filter(t=>t.id!==id)}));setConfirmDel(null);}
   const theme=PASTEL_THEMES.find(t=>t.id===local.themeId)||PASTEL_THEMES[0];
-  return(
-    <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem"}}>
-        <h2 style={{fontSize:18,fontWeight:700,color:"#1E293B"}}>設定</h2>
-        <button onClick={save} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"6px 22px",fontWeight:700,cursor:"pointer"}}>保存する</button>
-      </div>
-      <Card style={{marginBottom:"1rem"}}>
-        <div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:10}}>アカウント</div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-          <div><div style={{fontSize:13,color:"#1E293B",fontWeight:600}}>{userEmail}</div><div style={{fontSize:12,color:"#64748B",marginTop:2}}>データはSupabaseクラウドに同期されています</div></div>
-          <button onClick={onLogout} style={{fontSize:13,color:"#EF4444",borderColor:"#FECDD3",background:"#FFF1F2",padding:"5px 14px"}}><i className="ti ti-logout" style={{marginRight:4}}/>ログアウト</button>
-        </div>
-      </Card>
-      <Card style={{marginBottom:"1rem"}}>
-        <div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:10}}>テーマ・表示</div>
-        <div style={{marginBottom:12}}>
-          <Lbl>テーマカラー（{theme.label}）</Lbl>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:6}}>{PASTEL_THEMES.map(t=><button key={t.id} onClick={()=>setLocal(s=>({...s,themeId:t.id}))} title={t.label} style={{width:36,height:36,borderRadius:"50%",background:t.primary,border:local.themeId===t.id?"3px solid #1E293B":`3px solid ${t.primary}`,cursor:"pointer",position:"relative",padding:0}}>{local.themeId===t.id&&<span style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:16}}>✓</span>}</button>)}</div>
-        </div>
-        <div><Lbl>フォントサイズ: {local.fontSize}px</Lbl><input type="range" min={12} max={18} step={1} value={local.fontSize} onChange={e=>setLocal(s=>({...s,fontSize:Number(e.target.value)}))} style={{width:"100%"}}/></div>
-      </Card>
-      <Card style={{marginBottom:"1rem"}}>
-        <div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:10}}>作業ルール</div>
-        <div className="grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <div><Lbl tip={TOOLTIPS.workHours}>1日の作業時間（h）</Lbl><input type="number" value={local.workHoursPerDay} onChange={e=>setLocal(s=>({...s,workHoursPerDay:Number(e.target.value)}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
-          <div><Lbl tip={TOOLTIPS.monthlyLimit}>月間案件上限数</Lbl><input type="number" value={local.monthlyJobLimit} onChange={e=>setLocal(s=>({...s,monthlyJobLimit:Number(e.target.value)}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
-          <div style={{gridColumn:"1/-1"}}><Lbl tip={TOOLTIPS.alertHourlyRate}>時給アラート: {yen(local.alertHourlyRate)}/h</Lbl><input type="range" min={500} max={5000} step={100} value={local.alertHourlyRate} onChange={e=>setLocal(s=>({...s,alertHourlyRate:Number(e.target.value)}))} style={{width:"100%"}}/><div style={{fontSize:12,color:"#64748B",marginTop:2}}>この時給を下回る案件にアラートが表示されます</div></div>
-        </div>
-      </Card>
-      <Card style={{marginBottom:"1rem"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-          <div style={{fontSize:14,fontWeight:700,color:"#1E293B",display:"flex",alignItems:"center",gap:4}}><Tooltip text={TOOLTIPS.jobType}>作業種別・料金表</Tooltip></div>
-          <button onClick={()=>setLocal(s=>({...s,jobTypes:[...s.jobTypes,{id:Date.now(),name:"新しい種別",hours:2,defaultPrice:5000}]}))} style={{fontSize:12,padding:"4px 10px"}}>+ 追加</button>
-        </div>
-        <div style={{fontSize:12,color:"#64748B",marginBottom:8}}>種別名 / 工数(h) / 標準価格 / 時給換算</div>
-        {local.jobTypes.map(t=>{const rate=t.hours>0?Math.round(t.defaultPrice/t.hours):0;return(
-          <div key={t.id} style={{display:"grid",gridTemplateColumns:"1fr 60px 100px 72px 36px",gap:6,alignItems:"center",marginBottom:6}}>
-            <input value={t.name} onChange={e=>upJT(t.id,"name",e.target.value)} style={{boxSizing:"border-box"}}/>
-            <input type="number" value={t.hours} onChange={e=>upJT(t.id,"hours",e.target.value)} style={{boxSizing:"border-box"}} step="0.5"/>
-            <input type="number" value={t.defaultPrice} onChange={e=>upJT(t.id,"defaultPrice",e.target.value)} style={{boxSizing:"border-box"}}/>
-            <div style={{fontSize:12,color:rate<local.alertHourlyRate?"#C2410C":"#15803D",fontWeight:700,textAlign:"center"}}>{yen(rate)}/h</div>
-            <button onClick={()=>setConfirmDel({type:"jobType",id:t.id})} style={{padding:"4px",color:"#fff",background:"#EF4444",border:"1px solid #EF4444",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:13}}><i className="ti ti-trash"/></button>
-          </div>
-        );})}
-      </Card>
-      <Card style={{marginBottom:"1rem"}}>
-        <div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:10}}>クライアント管理</div>
-        {clients.map(c=>(
-          <div key={c.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:"var(--clr-bg)",borderRadius:8,marginBottom:6,border:"1px solid #E2E8F0"}}>
-            <div style={{width:10,height:10,borderRadius:"50%",background:c.color,flexShrink:0}}/>
-            <span style={{flex:1,fontSize:13,fontWeight:600,color:"#1E293B"}}>{c.name}{c.paymentDelay&&<span style={{marginLeft:6,fontSize:11,color:"#C2410C",background:"#FFF7ED",padding:"1px 6px",borderRadius:10}}>⚠ 遅延歴</span>}</span>
-            <span style={{fontSize:12,color:"#64748B"}}>{c.paymentMethod}</span>
-            <button onClick={()=>setEditCl({...c})} style={{fontSize:12,padding:"3px 8px",borderRadius:6}}><i className="ti ti-edit"/></button>
-            <button onClick={()=>setConfirmDel({type:"client",id:c.id})} style={{padding:"3px 7px",fontSize:13,color:"#fff",background:"#EF4444",border:"1px solid #EF4444",borderRadius:6,cursor:"pointer"}}><i className="ti ti-trash"/></button>
-          </div>
-        ))}
-      </Card>
-      {confirmDel&&<Confirm message={confirmDel.type==="jobType"?"この種別を削除しますか？":"このクライアントを削除しますか？"} onConfirm={()=>{if(confirmDel.type==="jobType")rmJT(confirmDel.id);else{setClients(p=>p.filter(c=>c.id!==confirmDel.id));setConfirmDel(null);}}} onCancel={()=>setConfirmDel(null)}/>}
-      {editCl&&<Modal title="クライアント編集" onClose={()=>setEditCl(null)}>
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          <div><Lbl>クライアント名</Lbl><input value={editCl.name} onChange={e=>setEditCl(c=>({...c,name:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
-          <div><Lbl>支払い方法</Lbl><select value={editCl.paymentMethod} onChange={e=>setEditCl(c=>({...c,paymentMethod:e.target.value}))} style={{width:"100%"}}>{PAYMENT_METHODS.map(m=><option key={m}>{m}</option>)}</select></div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <input type="checkbox" id="delay" checked={editCl.paymentDelay} onChange={e=>setEditCl(c=>({...c,paymentDelay:e.target.checked}))} style={{accentColor:"#EF4444",width:15,height:15}}/>
-            <label htmlFor="delay" style={{fontSize:13,color:"#1E293B",cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><Tooltip text={TOOLTIPS.paymentDelay}>入金遅延歴あり（前払い推奨）</Tooltip></label>
-          </div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{CLIENT_PALETTE.map(col=><button key={col} onClick={()=>setEditCl(c=>({...c,color:col}))} style={{width:28,height:28,borderRadius:"50%",background:col,border:editCl.color===col?"3px solid #1E293B":`3px solid ${col}`,cursor:"pointer",padding:0}}/>)}</div>
-          <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-            <button onClick={()=>setEditCl(null)}>キャンセル</button>
-            <button onClick={()=>{setClients(p=>p.map(c=>c.id===editCl.id?editCl:c));setEditCl(null);}} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"6px 18px",fontWeight:700,cursor:"pointer"}}>保存</button>
-          </div>
-        </div>
-      </Modal>}
-    </div>
-  );
+  return(<div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem"}}><h2 style={{fontSize:18,fontWeight:700,color:"#1E293B"}}>設定</h2><button onClick={save} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"6px 22px",fontWeight:700,cursor:"pointer"}}>保存する</button></div>
+    <Card style={{marginBottom:"1rem"}}><div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:10}}>アカウント</div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}><div><div style={{fontSize:13,color:"#1E293B",fontWeight:600}}>{userEmail}</div><div style={{fontSize:12,color:"#64748B",marginTop:2}}>データはSupabaseクラウドに同期されています</div></div><div style={{display:"flex",gap:8}}><button onClick={onFeedback} style={{fontSize:13,color:"var(--clr-primary)",borderColor:"var(--clr-primary)",background:"transparent",padding:"5px 14px"}}><i className="ti ti-message" style={{marginRight:4}}/>フィードバック</button><button onClick={onLogout} style={{fontSize:13,color:"#EF4444",borderColor:"#FECDD3",background:"#FFF1F2",padding:"5px 14px"}}><i className="ti ti-logout" style={{marginRight:4}}/>ログアウト</button></div></div></Card>
+    <Card style={{marginBottom:"1rem"}}><div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:10}}>テーマ・表示</div><div style={{marginBottom:12}}><Lbl>テーマカラー（{theme.label}）</Lbl><div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:6}}>{PASTEL_THEMES.map(t=><button key={t.id} onClick={()=>setLocal(s=>({...s,themeId:t.id}))} title={t.label} style={{width:36,height:36,borderRadius:"50%",background:t.primary,border:local.themeId===t.id?"3px solid #1E293B":`3px solid ${t.primary}`,cursor:"pointer",position:"relative",padding:0}}>{local.themeId===t.id&&<span style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:16}}>✓</span>}</button>)}</div></div><div><Lbl>フォントサイズ: {local.fontSize}px</Lbl><input type="range" min={12} max={18} step={1} value={local.fontSize} onChange={e=>setLocal(s=>({...s,fontSize:Number(e.target.value)}))} style={{width:"100%"}}/></div></Card>
+    <Card style={{marginBottom:"1rem"}}><div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:10}}>作業ルール</div><div className="grid-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><Lbl tip={TOOLTIPS.workHours}>1日の作業時間（h）</Lbl><input type="number" value={local.workHoursPerDay} onChange={e=>setLocal(s=>({...s,workHoursPerDay:Number(e.target.value)}))} style={{width:"100%",boxSizing:"border-box"}}/></div><div><Lbl tip={TOOLTIPS.monthlyLimit}>月間案件上限数</Lbl><input type="number" value={local.monthlyJobLimit} onChange={e=>setLocal(s=>({...s,monthlyJobLimit:Number(e.target.value)}))} style={{width:"100%",boxSizing:"border-box"}}/></div><div style={{gridColumn:"1/-1"}}><Lbl tip={TOOLTIPS.alertHourlyRate}>時給アラート: {yen(local.alertHourlyRate)}/h</Lbl><input type="range" min={500} max={5000} step={100} value={local.alertHourlyRate} onChange={e=>setLocal(s=>({...s,alertHourlyRate:Number(e.target.value)}))} style={{width:"100%"}}/><div style={{fontSize:12,color:"#64748B",marginTop:2}}>この時給を下回る案件にアラートが表示されます</div></div></div></Card>
+    <Card style={{marginBottom:"1rem"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><div style={{fontSize:14,fontWeight:700,color:"#1E293B",display:"flex",alignItems:"center",gap:4}}><Tooltip text={TOOLTIPS.jobType}>作業種別・料金表</Tooltip></div><button onClick={()=>setLocal(s=>({...s,jobTypes:[...s.jobTypes,{id:Date.now(),name:"新しい種別",hours:2,defaultPrice:5000}]}))} style={{fontSize:12,padding:"4px 10px"}}>+ 追加</button></div><div style={{fontSize:12,color:"#64748B",marginBottom:8}}>種別名 / 工数(h) / 標準価格 / 時給換算</div>{local.jobTypes.map(t=>{const rate=t.hours>0?Math.round(t.defaultPrice/t.hours):0;return(<div key={t.id} style={{display:"grid",gridTemplateColumns:"1fr 60px 100px 72px 36px",gap:6,alignItems:"center",marginBottom:6}}><input value={t.name} onChange={e=>upJT(t.id,"name",e.target.value)} style={{boxSizing:"border-box"}}/><input type="number" value={t.hours} onChange={e=>upJT(t.id,"hours",e.target.value)} style={{boxSizing:"border-box"}} step="0.5"/><input type="number" value={t.defaultPrice} onChange={e=>upJT(t.id,"defaultPrice",e.target.value)} style={{boxSizing:"border-box"}}/><div style={{fontSize:12,color:rate<local.alertHourlyRate?"#C2410C":"#15803D",fontWeight:700,textAlign:"center"}}>{yen(rate)}/h</div><button onClick={()=>setConfirmDel({type:"jobType",id:t.id})} style={{padding:"4px",color:"#fff",background:"#EF4444",border:"1px solid #EF4444",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:13}}><i className="ti ti-trash"/></button></div>);})}</Card>
+    <Card style={{marginBottom:"1rem"}}><div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:10}}>クライアント管理</div>{clients.map(c=>(<div key={c.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:"var(--clr-bg)",borderRadius:8,marginBottom:6,border:"1px solid #E2E8F0"}}><div style={{width:10,height:10,borderRadius:"50%",background:c.color,flexShrink:0}}/><span style={{flex:1,fontSize:13,fontWeight:600,color:"#1E293B"}}>{c.name}{c.paymentDelay&&<span style={{marginLeft:6,fontSize:11,color:"#C2410C",background:"#FFF7ED",padding:"1px 6px",borderRadius:10}}>⚠ 遅延歴</span>}</span><span style={{fontSize:12,color:"#64748B"}}>{c.paymentMethod}</span><button onClick={()=>setEditCl({...c})} style={{fontSize:12,padding:"3px 8px",borderRadius:6}}><i className="ti ti-edit"/></button><button onClick={()=>setConfirmDel({type:"client",id:c.id})} style={{padding:"3px 7px",fontSize:13,color:"#fff",background:"#EF4444",border:"1px solid #EF4444",borderRadius:6,cursor:"pointer"}}><i className="ti ti-trash"/></button></div>))}</Card>
+    {confirmDel&&<Confirm message={confirmDel.type==="jobType"?"この種別を削除しますか？":"このクライアントを削除しますか？"} onConfirm={()=>{if(confirmDel.type==="jobType")rmJT(confirmDel.id);else{setClients(p=>p.filter(c=>c.id!==confirmDel.id));setConfirmDel(null);}}} onCancel={()=>setConfirmDel(null)}/>}
+    {editCl&&<Modal title="クライアント編集" onClose={()=>setEditCl(null)}><div style={{display:"flex",flexDirection:"column",gap:10}}><div><Lbl>クライアント名</Lbl><input value={editCl.name} onChange={e=>setEditCl(c=>({...c,name:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div><div><Lbl>支払い方法</Lbl><select value={editCl.paymentMethod} onChange={e=>setEditCl(c=>({...c,paymentMethod:e.target.value}))} style={{width:"100%"}}>{PAYMENT_METHODS.map(m=><option key={m}>{m}</option>)}</select></div><div style={{display:"flex",alignItems:"center",gap:8}}><input type="checkbox" id="delay" checked={editCl.paymentDelay} onChange={e=>setEditCl(c=>({...c,paymentDelay:e.target.checked}))} style={{accentColor:"#EF4444",width:15,height:15,flexShrink:0,cursor:"pointer"}}/><label htmlFor="delay" style={{fontSize:13,color:"#1E293B",cursor:"pointer"}}><Tooltip text={TOOLTIPS.paymentDelay}>入金遅延歴あり（前払い推奨）</Tooltip></label></div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{CLIENT_PALETTE.map(col=><button key={col} onClick={()=>setEditCl(c=>({...c,color:col}))} style={{width:28,height:28,borderRadius:"50%",background:col,border:editCl.color===col?"3px solid #1E293B":`3px solid ${col}`,cursor:"pointer",padding:0}}/>)}</div><div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={()=>setEditCl(null)}>キャンセル</button><button onClick={()=>{setClients(p=>p.map(c=>c.id===editCl.id?editCl:c));setEditCl(null);}} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"6px 18px",fontWeight:700,cursor:"pointer"}}>保存</button></div></div></Modal>}
+  </div>);
 }
 
-// ── ROOT ───────────────────────────────────────────────────
+function FeedbackModal({userEmail,onClose}){
+  const[text,setText]=useState("");const[cat,setCat]=useState("機能要望");const[sent,setSent]=useState(false);const[loading,setLoading]=useState(false);
+  const CATS=["機能要望","バグ報告","使いにくい点","その他"];
+  async function send(){if(!text.trim())return;setLoading(true);try{await sb.from("feedback").insert({user_email:userEmail,category:cat,message:text,created_at:new Date().toISOString()});setSent(true);}catch(e){const fb=JSON.parse(localStorage.getItem("fk_feedback")||"[]");fb.push({email:userEmail,cat,text,date:new Date().toISOString()});localStorage.setItem("fk_feedback",JSON.stringify(fb));setSent(true);}setLoading(false);}
+  return(<Modal title="フィードバック" onClose={onClose}>{sent?(<div style={{textAlign:"center",padding:"2rem 0"}}><i className="ti ti-check-circle" style={{fontSize:48,color:"#10B981",display:"block",marginBottom:12}}/><div style={{fontSize:15,fontWeight:700,color:"#1E293B",marginBottom:8}}>ありがとうございます！</div><div style={{fontSize:13,color:"#64748B"}}>フィードバックを受け取りました。今後の改善に活用します。</div><button onClick={onClose} style={{marginTop:20,padding:"7px 24px"}}>閉じる</button></div>):(<div style={{display:"flex",flexDirection:"column",gap:12}}><div style={{fontSize:13,color:"#64748B",lineHeight:1.6}}>機能要望・バグ・使いにくい点など、なんでもお気軽にどうぞ。いただいたフィードバックは今後の改善に活用します。</div><div><Lbl>カテゴリ</Lbl><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{CATS.map(c=><button key={c} onClick={()=>setCat(c)} style={{fontSize:12,padding:"4px 12px",background:cat===c?"var(--clr-primary)":"transparent",color:cat===c?"#fff":"#64748B",border:`1.5px solid ${cat===c?"var(--clr-primary)":"#E2E8F0"}`,borderRadius:20}}>{c}</button>)}</div></div><div><Lbl>内容</Lbl><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="例：サムネイルの一括登録ができると助かります" style={{width:"100%",height:120,boxSizing:"border-box",resize:"vertical"}}/></div><div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={onClose}>キャンセル</button><button onClick={send} disabled={!text.trim()||loading} style={{background:"var(--clr-primary)",color:"#fff",border:"none",borderRadius:8,padding:"7px 22px",fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>{loading&&<i className="ti ti-refresh" style={{animation:"spin 1s linear infinite"}}/>}送信</button></div></div>)}</Modal>);
+}
+
 function App(){
-  const[user,setUser]=useState(null);
-  const[authLoading,setAuthLoading]=useState(true);
-  const[appLoading,setAppLoading]=useState(false);
-  const[activeTab,setActiveTab]=useState("home");
-  const[jobs,setJobsRaw]=useState([]);
-  const[clients,setClientsRaw]=useState([]);
-  const[expenses,setExpensesRaw]=useState([]);
-  const[settings,setSettingsRaw]=useState(INIT_SETTINGS);
-  const[syncing,setSyncing]=useState(false);
-  const[lastSync,setLastSync]=useState(null);
-  const[menuOpen,setMenuOpen]=useState(false);
-  const[showSampleBanner,setShowSampleBanner]=useState(false);
+  const[user,setUser]=useState(null);const[authLoading,setAuthLoading]=useState(true);const[appLoading,setAppLoading]=useState(false);
+  const[activeTab,setActiveTab]=useState("home");const[jobs,setJobsRaw]=useState([]);const[clients,setClientsRaw]=useState([]);const[expenses,setExpensesRaw]=useState([]);const[settings,setSettingsRaw]=useState(INIT_SETTINGS);
+  const[syncing,setSyncing]=useState(false);const[lastSync,setLastSync]=useState(null);const[menuOpen,setMenuOpen]=useState(false);const[showSampleBanner,setShowSampleBanner]=useState(false);const[showFeedback,setShowFeedback]=useState(false);
   const syncTimer=useRef(null);
-
-  useEffect(()=>{
-    sb.auth.getSession().then(({data:{session}})=>{setUser(session?.user||null);setAuthLoading(false);});
-    const{data:{subscription}}=sb.auth.onAuthStateChange((_,session)=>setUser(session?.user||null));
-    return()=>subscription.unsubscribe();
-  },[]);
-
-  useEffect(()=>{
-    if(!user)return;
-    async function load(){
-      setAppLoading(true);
-      const uid=user.id;
-      try{
-        const[j,c,e,s]=await Promise.all([dbLoad("jobs",uid),dbLoad("clients",uid),dbLoad("expenses",uid),dbLoad("settings",uid)]);
-        const isNew=!j&&!c&&!e&&!s;
-        setJobsRaw(j||SAMPLE_JOBS);
-        setClientsRaw(c||SAMPLE_CLIENTS);
-        setExpensesRaw(e||SAMPLE_EXPENSES);
-        if(s)setSettingsRaw(s);
-        if(isNew)setShowSampleBanner(true);
-      }catch(err){console.error(err);}
-      setAppLoading(false);
-    }
-    load();
-  },[user]);
-
-  function scheduleSave(table,data){
-    if(!user)return;
-    setSyncing(true);
-    if(syncTimer.current)clearTimeout(syncTimer.current);
-    syncTimer.current=setTimeout(async()=>{
-      try{await dbSave(table,user.id,data);setLastSync(new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})+"保存");}
-      catch(err){console.error(err);}
-      setSyncing(false);
-    },1200);
-  }
-
+  useEffect(()=>{sb.auth.getSession().then(({data:{session}})=>{setUser(session?.user||null);setAuthLoading(false);});const{data:{subscription}}=sb.auth.onAuthStateChange((_,session)=>setUser(session?.user||null));return()=>subscription.unsubscribe();},[]);
+  useEffect(()=>{if(!user)return;async function load(){setAppLoading(true);const uid=user.id;try{const[j,c,e,s]=await Promise.all([dbLoad("jobs",uid),dbLoad("clients",uid),dbLoad("expenses",uid),dbLoad("settings",uid)]);const isNew=!j&&!c&&!e&&!s;setJobsRaw(j||SAMPLE_JOBS);setClientsRaw(c||SAMPLE_CLIENTS);setExpensesRaw(e||SAMPLE_EXPENSES);if(s)setSettingsRaw(s);if(isNew)setShowSampleBanner(true);}catch(err){console.error(err);}setAppLoading(false);}load();},[user]);
+  function scheduleSave(table,data){if(!user)return;setSyncing(true);if(syncTimer.current)clearTimeout(syncTimer.current);syncTimer.current=setTimeout(async()=>{try{await dbSave(table,user.id,data);setLastSync(new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})+"保存");}catch(err){console.error(err);}setSyncing(false);},1200);}
   function setJobs(v){const n=typeof v==="function"?v(jobs):v;setJobsRaw(n);scheduleSave("jobs",n);}
   function setClients(v){const n=typeof v==="function"?v(clients):v;setClientsRaw(n);scheduleSave("clients",n);}
   function setExpenses(v){const n=typeof v==="function"?v(expenses):v;setExpensesRaw(n);scheduleSave("expenses",n);}
   function setSettings(v){const n=typeof v==="function"?v(settings):v;setSettingsRaw(n);scheduleSave("settings",n);}
-
-  async function handleLogout(){
-    await sb.auth.signOut();
-    setJobsRaw([]);setClientsRaw([]);setExpensesRaw([]);setSettingsRaw(INIT_SETTINGS);
-    setLastSync(null);setActiveTab("home");
-  }
-
+  async function handleLogout(){await sb.auth.signOut();setJobsRaw([]);setClientsRaw([]);setExpensesRaw([]);setSettingsRaw(INIT_SETTINGS);setLastSync(null);setActiveTab("home");}
   const theme=PASTEL_THEMES.find(t=>t.id===settings.themeId)||PASTEL_THEMES[0];
-  useEffect(()=>{
-    const r=document.documentElement;
-    r.style.setProperty("--clr-primary",theme.primary);
-    r.style.setProperty("--clr-bg",theme.bg);
-    r.style.setProperty("--clr-card",theme.card);
-    document.body.style.background=theme.bg;
-    document.body.style.fontSize=settings.fontSize+"px";
-  },[theme,settings.fontSize]);
-
+  useEffect(()=>{const r=document.documentElement;r.style.setProperty("--clr-primary",theme.primary);r.style.setProperty("--clr-bg",theme.bg);r.style.setProperty("--clr-card",theme.card);document.body.style.background=theme.bg;document.body.style.fontSize=settings.fontSize+"px";},[theme,settings.fontSize]);
   if(authLoading)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh"}}><i className="ti ti-refresh" style={{fontSize:32,color:"#6366F1",animation:"spin 1s linear infinite"}}/></div>;
   if(!user)return<LoginScreen onLogin={u=>setUser(u)}/>;
-  if(appLoading)return(
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",gap:16,background:theme.bg}}>
-      <div style={{width:44,height:44,borderRadius:12,background:theme.primary,display:"flex",alignItems:"center",justifyContent:"center"}}><i className="ti ti-briefcase" style={{color:"#fff",fontSize:24}}/></div>
-      <div style={{fontSize:18,fontWeight:700,color:theme.primary}}>FreelanceKit</div>
-      <div style={{fontSize:13,color:"#94A3B8"}}>データを読み込んでいます...</div>
-    </div>
-  );
-
-  const tabContent={
-    home:<HomeTab jobs={jobs} clients={clients} settings={settings} expenses={expenses}/>,
-    jobs:<JobsTab jobs={jobs} setJobs={setJobs} clients={clients} setClients={setClients} settings={settings}/>,
-    calendar:<CalendarTab jobs={jobs} clients={clients} settings={settings}/>,
-    finance:<FinanceTab jobs={jobs} expenses={expenses} setExpenses={setExpenses} settings={settings} setSettings={setSettings}/>,
-    analysis:<AnalysisTab jobs={jobs} clients={clients} settings={settings}/>,
-    invoice:<InvoiceTab jobs={jobs} clients={clients}/>,
-    contract:<ContractTab jobs={jobs} clients={clients}/>,
-    settings:<SettingsTab settings={settings} setSettings={setSettings} clients={clients} setClients={setClients} onLogout={handleLogout} userEmail={user.email}/>,
-  };
-
-  return(
-    <div style={{maxWidth:820,margin:"0 auto",padding:"0.75rem",minHeight:"100vh"}}>
-      {/* header */}
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:"0.75rem",padding:"0.75rem 1rem",background:theme.card,borderRadius:12,border:"1.5px solid #E2E8F0",boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
-        <div style={{width:32,height:32,borderRadius:8,background:theme.primary,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><i className="ti ti-briefcase" style={{color:"#fff",fontSize:18}}/></div>
-        <div style={{flex:1}}>
-          <div style={{fontSize:16,fontWeight:900,color:theme.primary}}>FreelanceKit</div>
-          <div style={{fontSize:11,color:"#94A3B8"}}>{user.email}</div>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#94A3B8"}}>
-          {syncing?<><i className="ti ti-refresh" style={{fontSize:13,animation:"spin 1s linear infinite"}}/> 同期中...</>
-          :lastSync?<><i className="ti ti-cloud-check" style={{fontSize:13,color:"#34D399"}}/> {lastSync}</>:null}
-        </div>
-      </div>
-      {/* tabs */}
-      <div style={{display:"flex",gap:2,overflowX:"auto",marginBottom:"1rem",background:theme.card,borderRadius:12,border:"1.5px solid #E2E8F0",padding:"4px"}}>
-        {TABS.map(tab=>{const active=activeTab===tab.id;return(
-          <button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{padding:"7px 10px",fontSize:12,border:"none",borderRadius:8,background:active?theme.primary:"transparent",color:active?"#fff":"#64748B",fontWeight:active?700:400,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,flex:"0 0 auto"}}>
-            <i className={`ti ${tab.icon}`} style={{fontSize:14}}/>{tab.label}
-          </button>
-        );})}
-      </div>
-      {/* content */}
-      <div style={{paddingBottom:80}}>
-        {showSampleBanner&&<SampleBanner onDismiss={()=>setShowSampleBanner(false)}/>}
-        {tabContent[activeTab]}
-      </div>
-      {/* mobile nav */}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,background:theme.card,borderTop:"1.5px solid #E2E8F0",zIndex:100,padding:"4px 0",display:"none"}} id="mobile-nav">
-        <div style={{display:"flex",justifyContent:"space-around",maxWidth:820,margin:"0 auto"}}>
-          {TABS.slice(0,5).map(tab=>{const active=activeTab===tab.id;return(
-            <button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"6px 4px",border:"none",background:"transparent",color:active?theme.primary:"#94A3B8",cursor:"pointer",fontSize:10,fontWeight:active?700:400,minWidth:52}}>
-              <i className={`ti ${tab.icon}`} style={{fontSize:20}}/><span>{tab.label}</span>
-            </button>
-          );})}
-          <button onClick={()=>setMenuOpen(m=>!m)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"6px 4px",border:"none",background:"transparent",color:["invoice","contract","settings"].includes(activeTab)?theme.primary:"#94A3B8",cursor:"pointer",fontSize:10,minWidth:52}}>
-            <i className="ti ti-dots" style={{fontSize:20}}/><span>その他</span>
-          </button>
-        </div>
-      </div>
-      {menuOpen&&<div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,0.4)"}} onClick={()=>setMenuOpen(false)}>
-        <div style={{position:"absolute",bottom:70,left:16,right:16,background:theme.card,borderRadius:16,border:"1.5px solid #E2E8F0",padding:"8px",boxShadow:"0 -8px 32px rgba(0,0,0,0.15)"}} onClick={e=>e.stopPropagation()}>
-          {TABS.slice(5).map(tab=>{const active=activeTab===tab.id;return(
-            <button key={tab.id} onClick={()=>{setActiveTab(tab.id);setMenuOpen(false);}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",border:"none",borderRadius:10,background:active?theme.primary+"22":"transparent",color:active?theme.primary:"#334155",cursor:"pointer",width:"100%",fontSize:14,fontWeight:active?700:400}}>
-              <i className={`ti ${tab.icon}`} style={{fontSize:20}}/>{tab.label}
-            </button>
-          );})}
-        </div>
-      </div>}
-      <style>{`@media(max-width:600px){#mobile-nav{display:block!important}}`}</style>
-    </div>
-  );
+  if(appLoading)return(<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",gap:16,background:theme.bg}}><div style={{width:44,height:44,borderRadius:12,background:theme.primary,display:"flex",alignItems:"center",justifyContent:"center"}}><i className="ti ti-briefcase" style={{color:"#fff",fontSize:24}}/></div><div style={{fontSize:18,fontWeight:700,color:theme.primary}}>FreelanceKit</div><div style={{fontSize:13,color:"#94A3B8"}}>データを読み込んでいます...</div></div>);
+  const tabContent={home:<HomeTab jobs={jobs} clients={clients} settings={settings} expenses={expenses}/>,jobs:<JobsTab jobs={jobs} setJobs={setJobs} clients={clients} setClients={setClients} settings={settings}/>,calendar:<CalendarTab jobs={jobs} clients={clients} settings={settings}/>,finance:<FinanceTab jobs={jobs} expenses={expenses} setExpenses={setExpenses} settings={settings} setSettings={setSettings}/>,analysis:<AnalysisTab jobs={jobs} clients={clients} expenses={expenses} settings={settings}/>,invoice:<InvoiceTab jobs={jobs} clients={clients}/>,contract:<ContractTab jobs={jobs} clients={clients}/>,settings:<SettingsTab settings={settings} setSettings={setSettings} clients={clients} setClients={setClients} onLogout={handleLogout} userEmail={user.email} onFeedback={()=>setShowFeedback(true)}/>};
+  return(<div style={{maxWidth:820,margin:"0 auto",padding:"0.75rem",minHeight:"100vh"}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:"0.75rem",padding:"0.75rem 1rem",background:theme.card,borderRadius:12,border:"1.5px solid #E2E8F0",boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}><div style={{width:32,height:32,borderRadius:8,background:theme.primary,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><i className="ti ti-briefcase" style={{color:"#fff",fontSize:18}}/></div><div style={{flex:1}}><div style={{fontSize:16,fontWeight:900,color:theme.primary}}>FreelanceKit</div><div style={{fontSize:11,color:"#94A3B8"}}>{user.email}</div></div><div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>setShowFeedback(true)} style={{fontSize:11,padding:"3px 10px",color:"var(--clr-primary)",borderColor:"var(--clr-primary)",background:"transparent"}} className="no-print"><i className="ti ti-message"/> フィードバック</button><div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#94A3B8"}}>{syncing?<><i className="ti ti-refresh" style={{fontSize:13,animation:"spin 1s linear infinite"}}/> 同期中...</>:lastSync?<><i className="ti ti-cloud-check" style={{fontSize:13,color:"#34D399"}}/> {lastSync}</>:null}</div></div></div>
+    <div style={{display:"flex",gap:2,overflowX:"auto",marginBottom:"1rem",background:theme.card,borderRadius:12,border:"1.5px solid #E2E8F0",padding:"4px"}}>{TABS.map(tab=>{const active=activeTab===tab.id;return(<button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{padding:"7px 10px",fontSize:12,border:"none",borderRadius:8,background:active?theme.primary:"transparent",color:active?"#fff":"#64748B",fontWeight:active?700:400,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,flex:"0 0 auto"}}><i className={`ti ${tab.icon}`} style={{fontSize:14}}/>{tab.label}</button>);})}</div>
+    <div style={{paddingBottom:80}}>{showSampleBanner&&<SampleBanner onDismiss={()=>setShowSampleBanner(false)}/>}{tabContent[activeTab]}</div>
+    <div style={{position:"fixed",bottom:0,left:0,right:0,background:theme.card,borderTop:"1.5px solid #E2E8F0",zIndex:100,padding:"4px 0",display:"none"}} id="mobile-nav"><div style={{display:"flex",justifyContent:"space-around",maxWidth:820,margin:"0 auto"}}>{TABS.slice(0,5).map(tab=>{const active=activeTab===tab.id;return(<button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"6px 4px",border:"none",background:"transparent",color:active?theme.primary:"#94A3B8",cursor:"pointer",fontSize:10,fontWeight:active?700:400,minWidth:52}}><i className={`ti ${tab.icon}`} style={{fontSize:20}}/><span>{tab.label}</span></button>);})} <button onClick={()=>setMenuOpen(m=>!m)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"6px 4px",border:"none",background:"transparent",color:["invoice","contract","settings"].includes(activeTab)?theme.primary:"#94A3B8",cursor:"pointer",fontSize:10,minWidth:52}}><i className="ti ti-dots" style={{fontSize:20}}/><span>その他</span></button></div></div>
+    {menuOpen&&<div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,0.4)"}} onClick={()=>setMenuOpen(false)}><div style={{position:"absolute",bottom:70,left:16,right:16,background:theme.card,borderRadius:16,border:"1.5px solid #E2E8F0",padding:"8px",boxShadow:"0 -8px 32px rgba(0,0,0,0.15)"}} onClick={e=>e.stopPropagation()}>{TABS.slice(5).map(tab=>{const active=activeTab===tab.id;return(<button key={tab.id} onClick={()=>{setActiveTab(tab.id);setMenuOpen(false);}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",border:"none",borderRadius:10,background:active?theme.primary+"22":"transparent",color:active?theme.primary:"#334155",cursor:"pointer",width:"100%",fontSize:14,fontWeight:active?700:400}}><i className={`ti ${tab.icon}`} style={{fontSize:20}}/>{tab.label}</button>);})}</div></div>}
+    {showFeedback&&<FeedbackModal userEmail={user.email} onClose={()=>setShowFeedback(false)}/>}
+    <style>{`@media(max-width:600px){#mobile-nav{display:block!important}}`}</style>
+  </div>);
 }
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
 </script>
